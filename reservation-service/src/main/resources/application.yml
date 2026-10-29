@@ -1,0 +1,24 @@
+server:
+  port: 8082
+spring:
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5434/reservation_db}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: update
+  jackson:
+    serialization:
+      write-dates-as-timestamps: false
+app:
+  admin-password: ${DEMO_ADMIN_PASSWORD}
+  student-password: ${DEMO_STUDENT_PASSWORD}
+  student-id: ${DEMO_STUDENT_ID:235150200111001}
+  seed-data: ${SEED_DATA:false}
+  room-service-url: ${ROOM_SERVICE_BASE_URL:http://localhost:8081}
+springdoc:
+  swagger-ui:
+    url: /openapi.yaml
+    disable-swagger-default-url: true

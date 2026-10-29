@@ -1,0 +1,122 @@
+package id.ac.ub.filkom.reservation.service;
+
+import id.ac.ub.filkom.reservation.client.RoomClient;
+import id.ac.ub.filkom.reservation.dto.*;
+import id.ac.ub.filkom.reservation.entity.*;
+import id.ac.ub.filkom.reservation.exception.ApiException;
+import id.ac.ub.filkom.reservation.repository.ReservationRepository;
+import jakarta.persistence.criteria.Predicate;
+import java.time.*;
+import java.util.*;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification;
+import org.springframework.security.core.Authentication;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+@Service
+public class ReservationService {
+  private final ReservationRepository reservations;
+  private final RoomClient rooms;
+  private final Clock clock;
+
+  public ReservationService(ReservationRepository reservations, RoomClient rooms, Clock clock) {
+    this.reservations = reservations;
+    this.rooms = rooms;
+    this.clock = clock;
+  }
+
+  private boolean admin(Authentication a) {
+    return a.getAuthorities().stream().anyMatch(r -> r.getAuthority().equals("ROLE_ADMIN"));
+  }
+
+  private void forbidden() {
+    throw new ApiException(403, "FORBIDDEN", "Akses reservasi ditolak.");
+  }
+
+  @Transactional(readOnly = true)
+  public ItemList<ReservationResponse> list(
+      String studentId, ReservationStatus status, UUID roomId, Authentication a) {
+    if (!admin(a)) {
+      if ((studentId != null && !studentId.equals(a.getName())) || roomId != null) forbidden();
+      studentId = a.getName();
+    }
+    final String owner = studentId;
+    Specification<Reservation> filter =
+        (r, q, b) -> {
+          var p = new ArrayList<Predicate>();
+          if (owner != null) p.add(b.equal(r.get("studentId"), owner));
+          if (status != null) p.add(b.equal(r.get("status"), status));
+          if (roomId != null) p.add(b.equal(r.get("roomId"), roomId));
+          return b.and(p.toArray(Predicate[]::new));
+        };
+    return ItemList.of(
+        reservations.findAll(filter, Sort.by("createdAt").descending()).stream()
+            .map(ReservationResponse::from)
+            .toList());
+  }
+
+  @Transactional(readOnly = true)
+  public ReservationResponse get(UUID id, Authentication a) {
+    var r =
+        reservations
+            .findById(id)
+            .orElseThrow(
+                () -> new ApiException(404, "RESERVATION_NOT_FOUND", "Reservasi tidak ditemukan."));
+    if (!admin(a) && !r.studentId.equals(a.getName())) forbidden();
+    return ReservationResponse.from(r);
+  }
+
+  private LocalTime time(String value) {
+    if (value == null || !value.matches("^([01][0-9]|2[0-3]):[0-5][0-9]$"))
+      throw new ApiException(400, "INVALID_TIME", "Waktu harus HH:mm.");
+    return LocalTime.parse(value);
+  }
+
+  private void schedule(LocalDate date, LocalTime start, LocalTime end) {
+    if (!start.isBefore(end))
+      throw new ApiException(400, "INVALID_TIME_RANGE", "Waktu mulai harus sebelum waktu selesai.");
+    if (!date.atTime(start).isAfter(LocalDateTime.now(clock)))
+      throw new ApiException(400, "PAST_SCHEDULE", "Waktu reservasi harus di masa mendatang.");
+  }
+
+  private RoomClient.RoomInfo room(UUID id) {
+    var r = rooms.get(id);
+    if (!r.isActive()) throw new ApiException(400, "ROOM_INACTIVE", "Ruangan tidak aktif.");
+    return r;
+  }
+
+  @Transactional(readOnly = true)
+  public Availability availability(UUID roomId, LocalDate date, String startTime, String endTime) {
+    var start = time(startTime);
+    var end = time(endTime);
+    schedule(date, start, end);
+    room(roomId);
+    return new Availability(
+        roomId, date, startTime, endTime, !reservations.overlaps(roomId, date, start, end));
+  }
+
+  @Transactional
+  public ReservationResponse create(CreateReservationRequest req, Authentication a) {
+    if (!a.getName().equals(req.studentId())) forbidden();
+    var start = time(req.startTime());
+    var end = time(req.endTime());
+    schedule(req.date(), start, end);
+    var room = room(req.roomId());
+    if (req.participantCount() > room.capacity())
+      throw new ApiException(400, "CAPACITY_EXCEEDED", "Jumlah peserta melebihi kapasitas.");
+    if (reservations.overlaps(req.roomId(), req.date(), start, end))
+      throw new ApiException(
+          409, "SCHEDULE_CONFLICT", "Ruangan sudah dipesan pada jadwal tersebut.");
+    var r = new Reservation();
+    r.roomId = req.roomId();
+    r.studentId = req.studentId();
+    r.date = req.date();
+    r.startTime = start;
+    r.endTime = end;
+    r.purpose = req.purpose();
+    r.participantCount = req.participantCount();
+    r.createdAt = OffsetDateTime.now(clock).truncatedTo(java.time.temporal.ChronoUnit.MICROS);
+    return ReservationResponse.from(reservations.saveAndFlush(r));
+  }
+}
