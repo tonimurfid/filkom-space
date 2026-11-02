@@ -12,3 +12,4 @@ app:
   student-password: test-student-password
   student-id: '235150200111001'
   seed-data: false
+  approval-pg-locks: ${APPROVAL_PG_LOCKS:false}
