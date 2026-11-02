@@ -1,0 +1,77 @@
+services:
+  room-db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: room_db
+      POSTGRES_USER: ${ROOM_DB_USERNAME:?Set ROOM_DB_USERNAME in .env}
+      POSTGRES_PASSWORD: ${ROOM_DB_PASSWORD:?Set ROOM_DB_PASSWORD in .env}
+    ports:
+    - 127.0.0.1:5433:5432
+    volumes:
+    - room-data:/var/lib/postgresql/data
+    healthcheck:
+      test:
+      - CMD-SHELL
+      - pg_isready -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"
+      interval: 5s
+      timeout: 3s
+      retries: 20
+  room-service:
+    build:
+      context: .
+      dockerfile: room-service/Dockerfile
+    ports:
+    - 127.0.0.1:8081:8081
+    environment:
+      DB_URL: jdbc:postgresql://room-db:5432/room_db
+      DB_USERNAME: ${ROOM_DB_USERNAME}
+      DB_PASSWORD: ${ROOM_DB_PASSWORD}
+      DEMO_ADMIN_PASSWORD: ${DEMO_ADMIN_PASSWORD:?Set DEMO_ADMIN_PASSWORD in .env}
+      DEMO_STUDENT_PASSWORD: ${DEMO_STUDENT_PASSWORD:?Set DEMO_STUDENT_PASSWORD in
+        .env}
+      DEMO_STUDENT_ID: ${DEMO_STUDENT_ID:-235150200111001}
+      SEED_DATA: 'true'
+    depends_on:
+      room-db:
+        condition: service_healthy
+  reservation-db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: reservation_db
+      POSTGRES_USER: ${RESERVATION_DB_USERNAME:?Set RESERVATION_DB_USERNAME in .env}
+      POSTGRES_PASSWORD: ${RESERVATION_DB_PASSWORD:?Set RESERVATION_DB_PASSWORD in
+        .env}
+    ports:
+    - 127.0.0.1:5434:5432
+    volumes:
+    - reservation-data:/var/lib/postgresql/data
+    healthcheck:
+      test:
+      - CMD-SHELL
+      - pg_isready -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"
+      interval: 5s
+      timeout: 3s
+      retries: 20
+  reservation-service:
+    build:
+      context: .
+      dockerfile: reservation-service/Dockerfile
+    ports:
+    - 127.0.0.1:8082:8082
+    environment:
+      DB_URL: jdbc:postgresql://reservation-db:5432/reservation_db
+      DB_USERNAME: ${RESERVATION_DB_USERNAME}
+      DB_PASSWORD: ${RESERVATION_DB_PASSWORD}
+      DEMO_ADMIN_PASSWORD: ${DEMO_ADMIN_PASSWORD:?Set DEMO_ADMIN_PASSWORD in .env}
+      DEMO_STUDENT_PASSWORD: ${DEMO_STUDENT_PASSWORD:?Set DEMO_STUDENT_PASSWORD in
+        .env}
+      DEMO_STUDENT_ID: ${DEMO_STUDENT_ID:-235150200111001}
+      ROOM_SERVICE_BASE_URL: http://room-service:8081
+    depends_on:
+      reservation-db:
+        condition: service_healthy
+      room-service:
+        condition: service_started
+volumes:
+  room-data: {}
+  reservation-data: {}

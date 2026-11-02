@@ -1,0 +1,564 @@
+openapi: 3.0.3
+info:
+  title: FILKOM Space API
+  version: 1.0.0
+  description: Implementasi GET/POST v1.0. Seluruh data demonstrasi merupakan simulasi;
+    bukan layanan resmi FILKOM UB.
+servers:
+- url: http://localhost:8081
+  description: Room Service (pengembangan lokal)
+- url: http://localhost:8082
+  description: Reservation Service (pengembangan lokal)
+tags:
+- name: Room Service
+  description: Pengelolaan dan pencarian data ruangan.
+- name: Reservation Service
+  description: Pengelolaan data reservasi dan cek ketersediaan.
+paths:
+  /api/v1/availability:
+    servers:
+    - url: http://localhost:8082
+    get:
+      tags:
+      - Reservation Service
+      summary: Mengecek ketersediaan slot ruangan
+      operationId: checkAvailability
+      description: Slot dianggap terisi jika ada reservasi APPROVED yang bertabrakan.
+        PENDING tidak memblokir slot.
+      parameters:
+      - name: roomId
+        in: query
+        required: true
+        description: ID ruangan.
+        schema:
+          type: string
+          format: uuid
+      - name: date
+        in: query
+        required: true
+        description: Tanggal reservasi (YYYY-MM-DD).
+        schema:
+          type: string
+          format: date
+      - name: startTime
+        in: query
+        required: true
+        description: Jam mulai (HH:mm).
+        schema:
+          type: string
+          pattern: ^([01][0-9]|2[0-3]):[0-5][0-9]$
+      - name: endTime
+        in: query
+        required: true
+        description: Jam selesai (HH:mm).
+        schema:
+          type: string
+          pattern: ^([01][0-9]|2[0-3]):[0-5][0-9]$
+      responses:
+        '200':
+          description: Hasil pemeriksaan ketersediaan.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Availability'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+  /api/v1/reservations:
+    servers:
+    - url: http://localhost:8082
+    get:
+      tags:
+      - Reservation Service
+      summary: Melihat daftar reservasi sesuai hak akses
+      operationId: listReservations
+      description: Mahasiswa hanya melihat reservasi miliknya; admin dapat melihat
+        seluruh reservasi. Filter roomId khusus admin/service account untuk pengecekan
+        ruangan saat pengarsipan. Identitas mahasiswa diverifikasi dari akun terautentikasi.
+      security:
+      - basicAuth: []
+      parameters:
+      - name: studentId
+        in: query
+        required: false
+        description: Filter pemilik reservasi (admin atau pemilik).
+        schema:
+          type: string
+      - name: status
+        in: query
+        required: false
+        description: Filter status reservasi.
+        schema:
+          type: string
+          enum:
+          - PENDING
+          - APPROVED
+          - REJECTED
+          - CANCELLED
+      - name: roomId
+        in: query
+        required: false
+        description: Filter per ruangan; hanya dapat digunakan ADMIN atau service
+          account terotorisasi, untuk validasi pengarsipan.
+        schema:
+          type: string
+          format: uuid
+      responses:
+        '200':
+          description: Daftar reservasi berhasil diambil.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReservationList'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      tags:
+      - Reservation Service
+      summary: Mengajukan reservasi ruangan
+      operationId: createReservation
+      security:
+      - basicAuth: []
+      description: Memvalidasi ruang aktif, kapasitas dan jadwal. studentId harus
+        sesuai identitas pemohon. Reservasi baru berstatus PENDING.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateReservationRequest'
+      responses:
+        '201':
+          description: Pengajuan reservasi berhasil dibuat (PENDING).
+          headers:
+            Location:
+              description: Alamat resource baru.
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Reservation'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+  /api/v1/reservations/{reservationId}:
+    servers:
+    - url: http://localhost:8082
+    get:
+      tags:
+      - Reservation Service
+      summary: Melihat detail reservasi
+      operationId: getReservationById
+      security:
+      - basicAuth: []
+      parameters:
+      - name: reservationId
+        in: path
+        required: true
+        description: ID unik reservasi (UUID).
+        schema:
+          type: string
+          format: uuid
+      responses:
+        '200':
+          description: Detail reservasi berhasil diambil.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Reservation'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+components:
+  securitySchemes:
+    basicAuth:
+      type: http
+      scheme: basic
+      description: Akun uji untuk prototipe lokal. Wajib HTTPS jika diterapkan di
+        jaringan publik.
+  responses:
+    BadRequest:
+      description: 400 - Input tidak valid.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Unauthorized:
+      description: 401 - Autentikasi diperlukan.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Forbidden:
+      description: 403 - Akses ditolak.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    NotFound:
+      description: 404 - Data tidak ditemukan.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Conflict:
+      description: 409 - Terjadi konflik data atau jadwal.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    ServiceUnavailable:
+      description: 503 - Layanan terkait sementara tidak dapat diakses.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+  schemas:
+    Room:
+      type: object
+      required:
+      - id
+      - code
+      - name
+      - building
+      - floor
+      - capacity
+      - facilities
+      - isActive
+      properties:
+        id:
+          type: string
+          format: uuid
+        code:
+          type: string
+        name:
+          type: string
+        building:
+          type: string
+        floor:
+          type: integer
+        capacity:
+          type: integer
+          minimum: 1
+        facilities:
+          type: array
+          items:
+            type: string
+        isActive:
+          type: boolean
+      example:
+        id: c9a2cb2e-7cb9-49ab-bde5-a76a21930b1f
+        code: R-DISKUSI-01
+        name: Ruang Diskusi A (simulasi)
+        building: Gedung G (simulasi)
+        floor: 2
+        capacity: 8
+        facilities:
+        - PROYEKTOR
+        - PAPAN_TULIS
+        isActive: true
+    CreateRoomRequest:
+      type: object
+      required:
+      - code
+      - name
+      - building
+      - floor
+      - capacity
+      - facilities
+      properties:
+        code:
+          type: string
+          minLength: 3
+          maxLength: 30
+          example: R-DISKUSI-01
+        name:
+          type: string
+          minLength: 3
+          maxLength: 100
+          example: Ruang Diskusi A (simulasi)
+        building:
+          type: string
+          example: Gedung G (simulasi)
+        floor:
+          type: integer
+          minimum: 1
+          example: 2
+        capacity:
+          type: integer
+          minimum: 1
+          example: 8
+        facilities:
+          type: array
+          items:
+            type: string
+          example:
+          - PROYEKTOR
+          - PAPAN_TULIS
+    RoomList:
+      type: object
+      required:
+      - items
+      - total
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Room'
+        total:
+          type: integer
+          minimum: 0
+    CreateReservationRequest:
+      type: object
+      required:
+      - roomId
+      - studentId
+      - date
+      - startTime
+      - endTime
+      - purpose
+      - participantCount
+      properties:
+        roomId:
+          type: string
+          format: uuid
+          example: c9a2cb2e-7cb9-49ab-bde5-a76a21930b1f
+        studentId:
+          type: string
+          minLength: 5
+          example: '235150200111001'
+        date:
+          type: string
+          format: date
+          example: '2026-11-02'
+        startTime:
+          type: string
+          pattern: ^([01][0-9]|2[0-3]):[0-5][0-9]$
+          example: '13:00'
+        endTime:
+          type: string
+          pattern: ^([01][0-9]|2[0-3]):[0-5][0-9]$
+          example: '15:00'
+        purpose:
+          type: string
+          minLength: 5
+          maxLength: 255
+          example: Diskusi penelitian
+        participantCount:
+          type: integer
+          minimum: 1
+          example: 6
+    Reservation:
+      type: object
+      required:
+      - id
+      - roomId
+      - studentId
+      - date
+      - startTime
+      - endTime
+      - purpose
+      - participantCount
+      - status
+      - createdAt
+      properties:
+        id:
+          type: string
+          format: uuid
+        roomId:
+          type: string
+          format: uuid
+        studentId:
+          type: string
+        date:
+          type: string
+          format: date
+        startTime:
+          type: string
+        endTime:
+          type: string
+        purpose:
+          type: string
+        participantCount:
+          type: integer
+        status:
+          type: string
+          enum:
+          - PENDING
+          - APPROVED
+          - REJECTED
+          - CANCELLED
+        createdAt:
+          type: string
+          format: date-time
+      example:
+        id: 1dc1b394-24a6-4265-bd93-d2d137fc8fe5
+        roomId: c9a2cb2e-7cb9-49ab-bde5-a76a21930b1f
+        studentId: '235150200111001'
+        date: '2026-11-02'
+        startTime: '13:00'
+        endTime: '15:00'
+        purpose: Diskusi penelitian
+        participantCount: 6
+        status: PENDING
+        createdAt: '2026-10-22T10:00:00+07:00'
+    ReservationList:
+      type: object
+      required:
+      - items
+      - total
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Reservation'
+        total:
+          type: integer
+          minimum: 0
+    Availability:
+      type: object
+      required:
+      - roomId
+      - date
+      - startTime
+      - endTime
+      - available
+      properties:
+        roomId:
+          type: string
+          format: uuid
+        date:
+          type: string
+          format: date
+        startTime:
+          type: string
+        endTime:
+          type: string
+        available:
+          type: boolean
+      example:
+        roomId: c9a2cb2e-7cb9-49ab-bde5-a76a21930b1f
+        date: '2026-11-02'
+        startTime: '13:00'
+        endTime: '15:00'
+        available: true
+    ErrorResponse:
+      type: object
+      required:
+      - status
+      - code
+      - message
+      properties:
+        status:
+          type: integer
+          example: 409
+        code:
+          type: string
+          example: SCHEDULE_CONFLICT
+        message:
+          type: string
+          example: Ruangan sudah dipesan pada jadwal tersebut.
+        path:
+          type: string
+          example: /api/v1/reservations
+    ReplaceRoomRequest:
+      type: object
+      required:
+      - code
+      - name
+      - building
+      - floor
+      - capacity
+      - facilities
+      properties:
+        code:
+          type: string
+          minLength: 3
+          maxLength: 30
+          example: R-DISKUSI-01
+        name:
+          type: string
+          minLength: 3
+          maxLength: 100
+          example: Ruang Diskusi A (simulasi)
+        building:
+          type: string
+          example: Gedung G (simulasi)
+        floor:
+          type: integer
+          minimum: 1
+          example: 2
+        capacity:
+          type: integer
+          minimum: 1
+          example: 8
+        facilities:
+          type: array
+          items:
+            type: string
+          example:
+          - PROYEKTOR
+          - PAPAN_TULIS
+      description: Payload penuh untuk PUT; semua field wajib; id dan isActive dikelola
+        sistem.
+      example:
+        code: R-DISKUSI-01
+        name: Ruang Diskusi Penelitian A (simulasi)
+        building: Gedung G (simulasi)
+        floor: 2
+        capacity: 10
+        facilities:
+        - PROYEKTOR
+        - PAPAN_TULIS
+        - WIFI
+    UpdateRoomStatusRequest:
+      type: object
+      additionalProperties: false
+      required:
+      - isActive
+      description: Mengubah hanya status boleh-dipesan dari ruangan.
+      properties:
+        isActive:
+          type: boolean
+          description: false menutup pengajuan reservasi baru.
+      example:
+        isActive: false
+    UpdateReservationStatusRequest:
+      type: object
+      additionalProperties: false
+      required:
+      - status
+      description: Status PENDING tidak dapat disetel langsung; aturan transisi dikontrol
+        role.
+      properties:
+        status:
+          type: string
+          enum:
+          - APPROVED
+          - REJECTED
+          - CANCELLED
+        reason:
+          type: string
+          maxLength: 255
+          description: Alasan keputusan atau pembatalan (opsional).
+      example:
+        status: APPROVED
+        reason: Ruangan tersedia dan sesuai kebutuhan.
