@@ -8,6 +8,8 @@ import id.ac.ub.filkom.reservation.dto.CreateReservationRequest;
 import id.ac.ub.filkom.reservation.exception.ApiException;
 import id.ac.ub.filkom.reservation.repository.ReservationRepository;
 import id.ac.ub.filkom.reservation.service.ReservationService;
+import id.ac.ub.filkom.reservation.service.ApprovalLock;
+import jakarta.persistence.EntityManager;
 import java.time.*;
 import java.util.UUID;
 import org.junit.jupiter.api.*;
@@ -24,7 +26,7 @@ class ReservationServiceTest {
 
   @Test
   void sameDayPastOrEqualStartUsesJakartaClock() {
-    var service = new ReservationService(repo, client, clock);
+    var service = new ReservationService(repo, client, clock, mock(ApprovalLock.class), mock(EntityManager.class));
     for (var start : new String[] {"09:59", "10:00"}) {
       var req =
           new CreateReservationRequest(
@@ -57,7 +59,7 @@ class ReservationServiceTest {
     assertThrows(
         ApiException.class,
         () ->
-            new ReservationService(repo, client, clock)
+            new ReservationService(repo, client, clock, mock(ApprovalLock.class), mock(EntityManager.class))
                 .create(req, new TestingAuthenticationToken("student", "", "ROLE_STUDENT")));
     verifyNoInteractions(repo);
   }
