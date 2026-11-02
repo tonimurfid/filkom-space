@@ -43,3 +43,15 @@ Workflow `.github/workflows/test.yml` menyiapkan:
 2. Job Compose yang membangun dua image, menjalankan dua service beserta dua PostgreSQL, lalu menjalankan `scripts/smoke.py`.
 
 Status workflow adalah bukti terpisah pada GitHub Actions/PR; konfigurasi workflow saja tidak berarti CI sudah lulus. Laporan JUnit tiap job diunggah sebagai artifact.
+
+
+## Validasi lanjutan: PUT, PATCH, DELETE (2 November 2026)
+
+- Pull Request: https://github.com/tonimurfid/filkom-space/pull/2
+- Job CI pada commit `12ae0a59267cbe5b6b5aad7b5261055144d0f1fe` berhasil (semua job lulus).
+- Bukti run: https://github.com/tonimurfid/filkom-space/actions/runs/41402533955
+- Job `test (room-service)` dan `test (reservation-service)` memakai PostgreSQL 17; pengujian mutasi berjalan melalui MockMvc dan JPA.
+- Job `compose-smoke` membangun kedua container Spring Boot, dua database, lalu menjalankan `scripts/smoke.py` dan `scripts/smoke_mutations.py` melalui HTTP sebenarnya.
+- Cakupan tambahan: PUT penggantian field; PATCH status aktif ruangan; PATCH keputusan reservasi dengan validasi ulang, hak akses, konflik, pembatalan; DELETE soft archive dengan cek reservasi via REST dan idempoten.
+- Approval serialization menggunakan `pg_advisory_xact_lock` pada PostgreSQL di dalam transaksi. H2 test profile mematikannya; CI PostgreSQL mengaktifkan `APPROVAL_PG_LOCKS=true`.
+- Pengujian di laptop pengguna tidak diklaim sudah dilakukan. Screenshot lokal dan hasil demo tetap perlu diambil untuk laporan.
