@@ -40,4 +40,7 @@ public class Reservation {
 
   @Column(nullable = false)
   public OffsetDateTime createdAt;
+
+  @Column(length = 255)
+  public String decisionReason;
 }
