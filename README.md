@@ -2,7 +2,7 @@
 
 Prototipe akademik tugas Arsitektur Berbasis Layanan, FILKOM Universitas Brawijaya. Semua nama ruangan, gedung, dan akun demonstrasi adalah **simulasi**, bukan inventaris atau layanan resmi FILKOM UB.
 
-Tahap ini mengimplementasikan **API v1.0 GET dan POST**. PUT/PATCH/DELETE dan API v2 belum diimplementasikan.
+API v1.0 telah mengimplementasikan **GET, POST, PUT, PATCH, DELETE**. PUT/PATCH/DELETE berasal dari PR #2 (di atas fondasi PR #1). API v2 belum diimplementasikan.
 
 ## Arsitektur dan build
 
@@ -81,15 +81,21 @@ mvn -pl reservation-service spring-boot:run
 
 ## Endpoint dan aturan
 
+Implementasi tambahan PUT/PATCH/DELETE, detail build properties, konfigurasi deployment, dan pengujian terdokumentasi pada [docs/IMPLEMENTATION_V1_PUT_PATCH_DELETE.md](docs/IMPLEMENTATION_V1_PUT_PATCH_DELETE.md).
+
 | Service | Method | Path | Akses |
 |---|---|---|---|
 | Room | GET | `/api/v1/rooms` | Publik |
 | Room | GET | `/api/v1/rooms/{roomId}` | Publik |
 | Room | POST | `/api/v1/rooms` | ADMIN |
+| Room | PUT | `/api/v1/rooms/{roomId}` | ADMIN |
+| Room | PATCH | `/api/v1/rooms/{roomId}/status` | ADMIN |
+| Room | DELETE | `/api/v1/rooms/{roomId}` | ADMIN |
 | Reservation | GET | `/api/v1/availability` | Publik |
 | Reservation | GET | `/api/v1/reservations` | STUDENT/ADMIN |
 | Reservation | GET | `/api/v1/reservations/{reservationId}` | Pemilik/ADMIN |
 | Reservation | POST | `/api/v1/reservations` | Pemohon terautentikasi |
+| Reservation | PATCH | `/api/v1/reservations/{reservationId}` | ADMIN / mahasiswa pemilik |
 
 - Filter rooms: `minCapacity >= 1`, `building`, dan `facility`; filter gedung/fasilitas memakai nilai persis, dapat digabungkan. Respons daftar `{ "items": [...], "total": 2 }`.
 - Room baru selalu aktif. `code` unik, termasuk ketika dua request membuat kode sama (constraint database).
@@ -97,7 +103,7 @@ mvn -pl reservation-service spring-boot:run
 - Mahasiswa hanya membaca reservasinya sendiri. Filter `studentId` orang lain dan filter `roomId` ditolak 403. Admin dapat memakai filter `studentId`, `status`, `roomId`.
 - `date` dan jam `HH:mm` memakai Asia/Jakarta. Jadwal wajib di masa depan, start < end, peserta minimal 1 dan tidak melebihi kapasitas; ruangan wajib ada dan aktif.
 - Reservasi baru **PENDING**. Hanya **APPROVED** memblokir slot; PENDING boleh menumpuk. Overlap: `existingStart < requestedEnd && existingEnd > requestedStart`. Slot 09:00–10:00 dan 10:00–11:00 tidak bentrok.
-- Tahap ini tidak menyediakan approval endpoint. Data APPROVED pada pengujian dibuat sebagai fixture database, bukan lewat endpoint tersembunyi. Penguncian/constraint untuk approval atomik menjadi tugas tahap PATCH.
+- Tahap PATCH menyediakan approval. ADMIN dapat mengubah PENDING menjadi APPROVED/REJECTED, sementara mahasiswa dapat membatalkan PENDING/APPROVED miliknya sebelum jadwal dimulai. Advisory transaction lock PostgreSQL menyerialisasi keputusan untuk roomId/tanggal yang sama.
 - Timeout HTTP Room Service: connect 2 detik, read 3 detik. Room tidak ditemukan diterjemahkan menjadi 404; kegagalan koneksi/HTTP upstream menjadi 503. Reservasi gagal tidak disimpan.
 - Sukses GET: 200; POST: 201 + `Location`. Error JSON: `status`, `code`, `message`, `path`. Input invalid 400, auth 401, role/ownership 403, ID tidak ada 404, konflik 409, dependensi gagal 503.
 
@@ -159,7 +165,8 @@ TEST_DB_USERNAME=test_user TEST_DB_PASSWORD=your-local-test-password \
 TEST_DB_DRIVER=org.postgresql.Driver mvn -B clean verify
 ```
 
-Untuk mengecek tujuh operasi melalui HTTP pada stack yang sudah berjalan, muat `.env` lalu jalankan `python3 scripts/smoke.py` (Python 3, tanpa dependency tambahan).
+Untuk mengecek tujuh operasi melalui HTTP pada stack yang sudah berjalan, muat `.env` lalu jalankan `python3 scripts/smoke.py
+python3 scripts/smoke_mutations.py` (Python 3, tanpa dependency tambahan).
 
 GitHub Actions juga memiliki job Compose untuk build/start dua service dan dua PostgreSQL, lalu menjalankan smoke tersebut. GitHub Actions menjalankan dua job test terisolasi (satu per service), masing-masing PostgreSQL sendiri; laporan JUnit diunggah sebagai artifact. Hasil aktual verifikasi dan batasan lingkungan dicatat di [docs/VALIDATION.md](docs/VALIDATION.md). File laporan lokal berada di `*/target/surefire-reports/` dan tidak di-commit.
 
