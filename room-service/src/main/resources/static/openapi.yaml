@@ -2,7 +2,8 @@ openapi: 3.0.3
 info:
   title: FILKOM Space API
   version: 1.0.0
-  description: Implementasi GET/POST v1.0. Seluruh data demonstrasi merupakan simulasi;
+  description: Spesifikasi design-first FILKOM Space API versi 1.0 (GET, POST, PUT, PATCH, DELETE). Prototipe akademik
+    untuk pengelolaan ruangan dan reservasi mahasiswa FILKOM UB. Semua data ruangan dan mahasiswa adalah simulasi;
     bukan layanan resmi FILKOM UB.
 servers:
 - url: http://localhost:8081
@@ -110,13 +111,128 @@ paths:
                 $ref: '#/components/schemas/Room'
         '404':
           $ref: '#/components/responses/NotFound'
+    put:
+      tags:
+      - Room Service
+      summary: Mengganti seluruh informasi ruangan (admin)
+      operationId: replaceRoom
+      description: 'Penggantian penuh field yang dapat diedit: code, name, building, floor, capacity, facilities.
+        Semua field wajib dikirim. id dan isActive tidak dapat diubah melalui PUT. Data lama yang tidak dikirim
+        tidak dipertahankan. Ruangan arsip tidak dapat diperbarui.'
+      security:
+      - basicAuth: []
+      parameters:
+      - name: roomId
+        in: path
+        required: true
+        description: ID unik ruangan (UUID).
+        schema:
+          type: string
+          format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReplaceRoomRequest'
+      responses:
+        '200':
+          description: Informasi ruangan telah diganti.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Room'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+    delete:
+      tags:
+      - Room Service
+      summary: Mengarsipkan ruangan (admin; soft delete)
+      operationId: archiveRoom
+      description: Mengarsipkan ruangan secara logis (soft delete), bukan menghapus fisik. Data historis tetap ada;
+        ruangan arsip tidak muncul dalam daftar dan detail publik serta tidak menerima reservasi baru. Jika masih
+        ada reservasi PENDING atau APPROVED pada waktu mendatang, pengarsipan ditolak (409). Pemeriksaan reservasi
+        dilakukan melalui Reservation Service; jika layanan tidak dapat diakses, kembalikan 503. Pengulangan penghapusan
+        pada ruangan yang telah diarsipkan mengembalikan 204 (idempoten).
+      security:
+      - basicAuth: []
+      parameters:
+      - name: roomId
+        in: path
+        required: true
+        description: ID unik ruangan (UUID).
+        schema:
+          type: string
+          format: uuid
+      responses:
+        '204':
+          description: Ruangan berhasil diarsipkan, atau sudah dalam keadaan arsip; tidak ada response body.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+  /api/v1/rooms/{roomId}/status:
+    servers:
+    - url: http://localhost:8081
+    patch:
+      tags:
+      - Room Service
+      summary: Mengubah status aktif ruangan (admin)
+      operationId: updateRoomStatus
+      description: Mengubah hanya isActive tanpa mengganti field lain. Ruangan tidak aktif tidak menerima pengajuan
+        baru; reservasi APPROVED yang telah ada tidak otomatis dibatalkan. Ini berbeda dari pengarsipan menggunakan
+        DELETE.
+      security:
+      - basicAuth: []
+      parameters:
+      - name: roomId
+        in: path
+        required: true
+        description: ID unik ruangan (UUID).
+        schema:
+          type: string
+          format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateRoomStatusRequest'
+      responses:
+        '200':
+          description: Status operasional ruangan berhasil diubah.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Room'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
 components:
   securitySchemes:
     basicAuth:
       type: http
       scheme: basic
-      description: Akun uji untuk prototipe lokal. Wajib HTTPS jika diterapkan di
-        jaringan publik.
+      description: Akun uji untuk prototipe lokal. Wajib HTTPS jika diterapkan di jaringan publik.
   responses:
     BadRequest:
       description: 400 - Input tidak valid.
@@ -440,8 +556,7 @@ components:
           example:
           - PROYEKTOR
           - PAPAN_TULIS
-      description: Payload penuh untuk PUT; semua field wajib; id dan isActive dikelola
-        sistem.
+      description: Payload penuh untuk PUT; semua field wajib; id dan isActive dikelola sistem.
       example:
         code: R-DISKUSI-01
         name: Ruang Diskusi Penelitian A (simulasi)
@@ -469,8 +584,7 @@ components:
       additionalProperties: false
       required:
       - status
-      description: Status PENDING tidak dapat disetel langsung; aturan transisi dikontrol
-        role.
+      description: Status PENDING tidak dapat disetel langsung; aturan transisi dikontrol role.
       properties:
         status:
           type: string
