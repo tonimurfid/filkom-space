@@ -31,6 +31,7 @@ services:
         .env}
       DEMO_STUDENT_ID: ${DEMO_STUDENT_ID:-235150200111001}
       SEED_DATA: 'true'
+      RESERVATION_SERVICE_BASE_URL: http://reservation-service:8082
     depends_on:
       room-db:
         condition: service_healthy
