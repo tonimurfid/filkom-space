@@ -30,7 +30,7 @@ Tunggu log `Started Application` dari kedua layanan. `depends_on` menunggu keseh
 
 - Room Swagger: http://localhost:8081/swagger-ui/index.html
 - Reservation Swagger: http://localhost:8082/swagger-ui/index.html
-- Kontrak GET/POST per service: `/openapi.yaml`
+- Kontrak OpenAPI v1.0 per service: `/openapi.yaml`
 - Dokumentasi runtime hasil scanning: `/v3/api-docs`
 
 Gunakan tombol **Authorize** untuk operasi terproteksi. Username admin: `admin`; username mahasiswa: nilai `DEMO_STUDENT_ID` (default simulasi `235150200111001`). Password diambil dari `.env`, tidak ditanam di kode. HTTP Basic dipakai untuk demo localhost.
@@ -165,16 +165,15 @@ TEST_DB_USERNAME=test_user TEST_DB_PASSWORD=your-local-test-password \
 TEST_DB_DRIVER=org.postgresql.Driver mvn -B clean verify
 ```
 
-Untuk mengecek tujuh operasi melalui HTTP pada stack yang sudah berjalan, muat `.env` lalu jalankan `python3 scripts/smoke.py
-python3 scripts/smoke_mutations.py` (Python 3, tanpa dependency tambahan).
+Untuk mengecek seluruh operasi melalui HTTP pada stack yang berjalan, muat `.env` lalu jalankan `python3 scripts/smoke.py` **dan** `python3 scripts/smoke_mutations.py` (Python 3 tanpa dependency tambahan).
 
 GitHub Actions juga memiliki job Compose untuk build/start dua service dan dua PostgreSQL, lalu menjalankan smoke tersebut. GitHub Actions menjalankan dua job test terisolasi (satu per service), masing-masing PostgreSQL sendiri; laporan JUnit diunggah sebagai artifact. Hasil aktual verifikasi dan batasan lingkungan dicatat di [docs/VALIDATION.md](docs/VALIDATION.md). File laporan lokal berada di `*/target/surefire-reports/` dan tidak di-commit.
 
 ## Kontrak dan catatan sumber
 
-- [YAML v1 lengkap asli](docs/filkom-space-openapi-v1-complete.yaml) disimpan tanpa perubahan; mencakup desain tahap PUT/PATCH/DELETE.
-- Swagger `/openapi.yaml` per service adalah subset GET/POST dari YAML asli. Swagger memperlihatkan kontrak yang dituju; `/v3/api-docs` memperlihatkan scanning implementasi.
-- DOCX menyebut PATCH reservasi `/{reservationId}/status`, sedangkan YAML memakai `/{reservationId}`. YAML menjadi acuan; keduanya belum diimplementasikan pada tahap ini.
+- [YAML v1 lengkap asli](docs/filkom-space-openapi-v1-complete.yaml) disimpan tanpa perubahan; menjadi acuan seluruh 11 operasi GET/POST/PUT/PATCH/DELETE.
+- Swagger `/openapi.yaml` per service adalah subset seluruh operasi masing-masing service dari YAML asli. Swagger memperlihatkan kontrak yang dituju; `/v3/api-docs` memperlihatkan scanning implementasi.
+- DOCX menyebut PATCH reservasi `/{reservationId}/status`, sedangkan YAML memakai `/{reservationId}`. Implementasi mengikuti YAML: `PATCH /api/v1/reservations/{reservationId}`.
 - Placeholder `{id}` pada instruksi endpoint dinyatakan sebagai `{roomId}`/`{reservationId}` mengikuti YAML; URL aktual tetap sama.
 - YAML tidak mencantumkan 400 pada beberapa GET yang memiliki UUID/enum. Implementasi tetap mengembalikan 400 berformat standar untuk input malformed; tidak mengubah respons sukses atau kontrak field.
 
@@ -184,7 +183,7 @@ GitHub Actions juga memiliki job Compose untuk build/start dua service dan dua P
 |---|---|---|
 | Build properties | `pom.xml`, `room-service/pom.xml`, `reservation-service/pom.xml` | Java/dependency/plugin dan dua modul independen |
 | Deployment | `docker-compose.yml`, `*/Dockerfile`, `*/src/main/resources/application.yml`, `.env.example` | Dua DB, dua proses, environment, port |
-| HTTP/API | `*/controller/*Controller.java` | Mapping tujuh operasi GET/POST dan Location |
+| HTTP/API | `*/controller/*Controller.java` | Mapping 11 operasi GET/POST/PUT/PATCH/DELETE |
 | Aturan bisnis | `*/service/*Service.java` | Filter, ownership, kapasitas, waktu, konflik |
 | Persistence | `*/entity/`, `*/repository/` | Tabel dan query masing-masing domain |
 | DTO | `*/dto/` | Payload request/response sesuai v1 |
@@ -193,4 +192,4 @@ GitHub Actions juga memiliki job Compose untuk build/start dua service dan dua P
 | Demo | `room-service/.../config/DemoData.java` | Seed data simulasi, opt-in |
 | Pengujian | `*/src/test/`, `.github/workflows/test.yml` | Unit, MockMvc, JPA, HTTP client, CI PostgreSQL |
 
-Tidak ada endpoint approval, API v2, frontend, gateway, atau broker pada implementasi tahap ini.
+API v2, frontend, gateway, dan broker belum termasuk implementasi tahap ini.
