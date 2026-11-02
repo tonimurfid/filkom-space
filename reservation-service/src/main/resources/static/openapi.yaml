@@ -2,7 +2,8 @@ openapi: 3.0.3
 info:
   title: FILKOM Space API
   version: 1.0.0
-  description: Implementasi GET/POST v1.0. Seluruh data demonstrasi merupakan simulasi;
+  description: Spesifikasi design-first FILKOM Space API versi 1.0 (GET, POST, PUT, PATCH, DELETE). Prototipe akademik
+    untuk pengelolaan ruangan dan reservasi mahasiswa FILKOM UB. Semua data ruangan dan mahasiswa adalah simulasi;
     bukan layanan resmi FILKOM UB.
 servers:
 - url: http://localhost:8081
@@ -23,8 +24,7 @@ paths:
       - Reservation Service
       summary: Mengecek ketersediaan slot ruangan
       operationId: checkAvailability
-      description: Slot dianggap terisi jika ada reservasi APPROVED yang bertabrakan.
-        PENDING tidak memblokir slot.
+      description: Slot dianggap terisi jika ada reservasi APPROVED yang bertabrakan. PENDING tidak memblokir slot.
       parameters:
       - name: roomId
         in: query
@@ -75,9 +75,9 @@ paths:
       - Reservation Service
       summary: Melihat daftar reservasi sesuai hak akses
       operationId: listReservations
-      description: Mahasiswa hanya melihat reservasi miliknya; admin dapat melihat
-        seluruh reservasi. Filter roomId khusus admin/service account untuk pengecekan
-        ruangan saat pengarsipan. Identitas mahasiswa diverifikasi dari akun terautentikasi.
+      description: Mahasiswa hanya melihat reservasi miliknya; admin dapat melihat seluruh reservasi. Filter roomId
+        khusus admin/service account untuk pengecekan ruangan saat pengarsipan. Identitas mahasiswa diverifikasi
+        dari akun terautentikasi.
       security:
       - basicAuth: []
       parameters:
@@ -101,8 +101,8 @@ paths:
       - name: roomId
         in: query
         required: false
-        description: Filter per ruangan; hanya dapat digunakan ADMIN atau service
-          account terotorisasi, untuk validasi pengarsipan.
+        description: Filter per ruangan; hanya dapat digunakan ADMIN atau service account terotorisasi, untuk validasi
+          pengarsipan.
         schema:
           type: string
           format: uuid
@@ -124,8 +124,8 @@ paths:
       operationId: createReservation
       security:
       - basicAuth: []
-      description: Memvalidasi ruang aktif, kapasitas dan jadwal. studentId harus
-        sesuai identitas pemohon. Reservasi baru berstatus PENDING.
+      description: Memvalidasi ruang aktif, kapasitas dan jadwal. studentId harus sesuai identitas pemohon. Reservasi
+        baru berstatus PENDING.
       requestBody:
         required: true
         content:
@@ -187,13 +187,56 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+    patch:
+      tags:
+      - Reservation Service
+      summary: Menyetujui, menolak, atau membatalkan reservasi
+      operationId: updateReservationStatus
+      description: ADMIN boleh mengubah PENDING menjadi APPROVED/REJECTED. STUDENT hanya boleh membatalkan reservasi
+        miliknya yang PENDING atau APPROVED dan belum dimulai. APPROVED diverifikasi ulang terhadap Room Service
+        (ruangan aktif, kapasitas) serta bentrokan jadwal; persetujuan paralel harus dijaga atomik di database.
+        REJECTED dan CANCELLED adalah status akhir. Status PENDING tidak boleh dikirim pada PATCH.
+      security:
+      - basicAuth: []
+      parameters:
+      - name: reservationId
+        in: path
+        required: true
+        description: ID unik reservasi (UUID).
+        schema:
+          type: string
+          format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateReservationStatusRequest'
+      responses:
+        '200':
+          description: Status reservasi berhasil diperbarui.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Reservation'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
 components:
   securitySchemes:
     basicAuth:
       type: http
       scheme: basic
-      description: Akun uji untuk prototipe lokal. Wajib HTTPS jika diterapkan di
-        jaringan publik.
+      description: Akun uji untuk prototipe lokal. Wajib HTTPS jika diterapkan di jaringan publik.
   responses:
     BadRequest:
       description: 400 - Input tidak valid.
@@ -517,8 +560,7 @@ components:
           example:
           - PROYEKTOR
           - PAPAN_TULIS
-      description: Payload penuh untuk PUT; semua field wajib; id dan isActive dikelola
-        sistem.
+      description: Payload penuh untuk PUT; semua field wajib; id dan isActive dikelola sistem.
       example:
         code: R-DISKUSI-01
         name: Ruang Diskusi Penelitian A (simulasi)
@@ -546,8 +588,7 @@ components:
       additionalProperties: false
       required:
       - status
-      description: Status PENDING tidak dapat disetel langsung; aturan transisi dikontrol
-        role.
+      description: Status PENDING tidak dapat disetel langsung; aturan transisi dikontrol role.
       properties:
         status:
           type: string

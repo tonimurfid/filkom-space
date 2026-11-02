@@ -5,6 +5,7 @@ import id.ac.ub.filkom.reservation.dto.*;
 import id.ac.ub.filkom.reservation.entity.*;
 import id.ac.ub.filkom.reservation.exception.ApiException;
 import id.ac.ub.filkom.reservation.repository.ReservationRepository;
+import jakarta.persistence.EntityManager;
 import jakarta.persistence.criteria.Predicate;
 import java.time.*;
 import java.util.*;
@@ -19,11 +20,17 @@ public class ReservationService {
   private final ReservationRepository reservations;
   private final RoomClient rooms;
   private final Clock clock;
+  private final ApprovalLock approvalLock;
+  private final EntityManager entityManager;
 
-  public ReservationService(ReservationRepository reservations, RoomClient rooms, Clock clock) {
+  public ReservationService(
+      ReservationRepository reservations, RoomClient rooms, Clock clock,
+      ApprovalLock approvalLock, EntityManager entityManager) {
     this.reservations = reservations;
     this.rooms = rooms;
     this.clock = clock;
+    this.approvalLock = approvalLock;
+    this.entityManager = entityManager;
   }
 
   private boolean admin(Authentication a) {
@@ -94,6 +101,52 @@ public class ReservationService {
     room(roomId);
     return new Availability(
         roomId, date, startTime, endTime, !reservations.overlaps(roomId, date, start, end));
+  }
+
+  @Transactional
+  public ReservationResponse updateStatus(
+      UUID id, UpdateReservationStatusRequest req, Authentication a) {
+    if (req.status() == null || req.status() == ReservationStatus.PENDING)
+      throw new ApiException(400, "INVALID_STATUS", "Status tujuan tidak diizinkan.");
+
+    var r = reservations.findById(id).orElseThrow(() ->
+        new ApiException(404, "RESERVATION_NOT_FOUND", "Reservasi tidak ditemukan."));
+    if (!admin(a) && !r.studentId.equals(a.getName())) forbidden();
+
+    // Every status decision (including cancellation) is serialized for a room/date.
+    approvalLock.acquire(r.roomId, r.date);
+    entityManager.refresh(r); // Reload a decision that may have changed while waiting for the lock.
+    if (r.status == ReservationStatus.REJECTED || r.status == ReservationStatus.CANCELLED)
+      throw new ApiException(409, "INVALID_STATUS_TRANSITION",
+          "Reservasi sudah berstatus akhir.");
+
+    if (admin(a)) {
+      if (r.status != ReservationStatus.PENDING ||
+          (req.status() != ReservationStatus.APPROVED
+              && req.status() != ReservationStatus.REJECTED))
+        throw new ApiException(409, "INVALID_STATUS_TRANSITION",
+            "Admin hanya dapat menyetujui atau menolak reservasi PENDING.");
+
+      if (req.status() == ReservationStatus.APPROVED) {
+        schedule(r.date, r.startTime, r.endTime);
+        var room = room(r.roomId);
+        if (r.participantCount > room.capacity())
+          throw new ApiException(400, "CAPACITY_EXCEEDED", "Jumlah peserta melebihi kapasitas.");
+        if (reservations.overlaps(r.roomId, r.date, r.startTime, r.endTime))
+          throw new ApiException(409, "SCHEDULE_CONFLICT",
+              "Ruangan sudah dipesan pada jadwal tersebut.");
+      }
+    } else {
+      if (req.status() != ReservationStatus.CANCELLED)
+        forbidden();
+      if (!r.date.atTime(r.startTime).isAfter(LocalDateTime.now(clock)))
+        throw new ApiException(409, "RESERVATION_STARTED",
+            "Reservasi yang sudah dimulai tidak dapat dibatalkan.");
+    }
+
+    r.status = req.status();
+    r.decisionReason = req.reason();
+    return ReservationResponse.from(reservations.saveAndFlush(r));
   }
 
   @Transactional

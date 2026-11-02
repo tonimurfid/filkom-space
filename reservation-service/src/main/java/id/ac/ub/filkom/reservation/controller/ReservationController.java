@@ -43,6 +43,13 @@ public class ReservationController {
     return reservations.availability(roomId, date, startTime, endTime);
   }
 
+  @PatchMapping("/reservations/{reservationId}")
+  public ReservationResponse updateStatus(
+      @PathVariable UUID reservationId,
+      @Valid @RequestBody UpdateReservationStatusRequest req, Authentication a) {
+    return reservations.updateStatus(reservationId, req, a);
+  }
+
   @PostMapping("/reservations")
   public ResponseEntity<ReservationResponse> create(
       @Valid @RequestBody CreateReservationRequest req, Authentication a) {

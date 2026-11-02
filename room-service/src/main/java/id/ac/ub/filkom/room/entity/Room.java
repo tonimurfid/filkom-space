@@ -33,4 +33,7 @@ public class Room {
 
   @Column(nullable = false)
   public boolean isActive = true;
+
+  @Column(nullable = false, columnDefinition = "boolean default false")
+  public boolean archived = false;
 }

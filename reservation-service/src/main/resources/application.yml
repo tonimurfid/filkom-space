@@ -18,6 +18,7 @@ app:
   student-id: ${DEMO_STUDENT_ID:235150200111001}
   seed-data: ${SEED_DATA:false}
   room-service-url: ${ROOM_SERVICE_BASE_URL:http://localhost:8081}
+  approval-pg-locks: ${APPROVAL_PG_LOCKS:true}
 springdoc:
   swagger-ui:
     url: /openapi.yaml
