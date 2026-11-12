@@ -172,6 +172,7 @@ GitHub Actions juga memiliki job Compose untuk build/start dua service dan dua P
 ## Kontrak dan catatan sumber
 
 - [YAML v1 lengkap asli](docs/filkom-space-openapi-v1-complete.yaml) disimpan tanpa perubahan; menjadi acuan seluruh 11 operasi GET/POST/PUT/PATCH/DELETE.
+- [Rancangan OpenAPI v2](docs/filkom-space-openapi-v2.yaml) mendokumentasikan 12 operasi GET/POST/PUT/DELETE dengan jadwal reservasi dalam objek `schedule`. Endpoint v2 belum diimplementasikan.
 - Swagger `/openapi.yaml` per service adalah subset seluruh operasi masing-masing service dari YAML asli. Swagger memperlihatkan kontrak yang dituju; `/v3/api-docs` memperlihatkan scanning implementasi.
 - DOCX menyebut PATCH reservasi `/{reservationId}/status`, sedangkan YAML memakai `/{reservationId}`. Implementasi mengikuti YAML: `PATCH /api/v1/reservations/{reservationId}`.
 - Placeholder `{id}` pada instruksi endpoint dinyatakan sebagai `{roomId}`/`{reservationId}` mengikuti YAML; URL aktual tetap sama.
