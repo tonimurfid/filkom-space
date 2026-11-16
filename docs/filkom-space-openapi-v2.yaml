@@ -4,7 +4,7 @@ info:
   version: 2.0.0
   description: >-
     Rancangan kontrak API versi 2.0 untuk prototipe akademik FILKOM Space.
-    Berkas ini belum merepresentasikan endpoint yang telah diimplementasikan.
+    Operasi GET dan POST tersedia. Operasi PUT dan DELETE masih berupa rancangan.
     Data ruangan dan mahasiswa pada contoh bersifat simulasi.
 servers:
   - url: http://localhost:8081

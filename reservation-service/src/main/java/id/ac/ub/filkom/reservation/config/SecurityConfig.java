@@ -39,14 +39,15 @@ public class SecurityConfig {
                 a.requestMatchers(
                         "/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**", "/openapi.yaml")
                     .permitAll()
-                    .requestMatchers(HttpMethod.GET, "/api/v1/availability")
+                    .requestMatchers(HttpMethod.GET, "/api/v1/availability", "/api/v2/availability")
                     .permitAll()
-                    .requestMatchers(HttpMethod.POST, "/api/v1/reservations")
+                    .requestMatchers(HttpMethod.POST, "/api/v1/reservations", "/api/v2/reservations")
                     .hasAnyRole("STUDENT", "ADMIN")
                     .requestMatchers(HttpMethod.PATCH, "/api/v1/reservations/*")
                     .hasAnyRole("STUDENT", "ADMIN")
                     .requestMatchers(
-                        HttpMethod.GET, "/api/v1/reservations", "/api/v1/reservations/*")
+                        HttpMethod.GET, "/api/v1/reservations", "/api/v1/reservations/*",
+                        "/api/v2/reservations", "/api/v2/reservations/*")
                     .hasAnyRole("ADMIN", "STUDENT")
                     .anyRequest()
                     .denyAll())

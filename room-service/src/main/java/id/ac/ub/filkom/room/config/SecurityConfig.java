@@ -39,9 +39,9 @@ public class SecurityConfig {
                 a.requestMatchers(
                         "/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**", "/openapi.yaml")
                     .permitAll()
-                    .requestMatchers(HttpMethod.GET, "/api/v1/rooms", "/api/v1/rooms/*")
+                    .requestMatchers(HttpMethod.GET, "/api/v1/rooms", "/api/v1/rooms/*", "/api/v2/rooms", "/api/v2/rooms/*")
                     .permitAll()
-                     .requestMatchers(HttpMethod.POST, "/api/v1/rooms")
+                     .requestMatchers(HttpMethod.POST, "/api/v1/rooms", "/api/v2/rooms")
                     .hasRole("ADMIN")
                     .requestMatchers(HttpMethod.PUT, "/api/v1/rooms/*")
                     .hasRole("ADMIN")

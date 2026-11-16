@@ -122,6 +122,48 @@ class ReservationIntegrationTest {
   }
 
   @Test
+  void v2ReservationRoutesUseNestedScheduleAndKeepV1Compatible() throws Exception {
+    var path = "/api/v2/reservations";
+    var flat = (com.fasterxml.jackson.databind.node.ObjectNode) json.readTree(payload());
+    var nested = flat.deepCopy();
+    var schedule = nested.putObject("schedule");
+    for (String field : List.of("date", "startTime", "endTime")) {
+      schedule.set(field, nested.remove(field));
+    }
+    mvc.perform(post(path).with(user(OWNER).roles("STUDENT"))
+            .contentType(MediaType.APPLICATION_JSON).content(flat.toString()))
+        .andExpect(status().isBadRequest());
+    schedule.put("unexpected", true);
+    mvc.perform(post(path).with(user(OWNER).roles("STUDENT"))
+            .contentType(MediaType.APPLICATION_JSON).content(nested.toString()))
+        .andExpect(status().isBadRequest());
+    schedule.remove("unexpected");
+
+    var response = mvc.perform(post(path).with(user(OWNER).roles("STUDENT"))
+            .contentType(MediaType.APPLICATION_JSON).content(nested.toString()))
+        .andExpect(status().isCreated())
+        .andExpect(jsonPath("$.status").value("PENDING"))
+        .andExpect(jsonPath("$.schedule.startTime").value("13:00"))
+        .andExpect(jsonPath("$.startTime").doesNotExist()).andReturn().getResponse();
+    String id = json.readTree(response.getContentAsString()).get("id").asText();
+    Assertions.assertEquals(path + "/" + id, response.getHeader("Location"));
+    mvc.perform(get(path + "/" + id).with(user("other").roles("STUDENT")))
+        .andExpect(status().isForbidden());
+    mvc.perform(get(path + "/" + id).with(user(OWNER).roles("STUDENT")))
+        .andExpect(jsonPath("$.schedule.endTime").value("15:00"));
+    mvc.perform(get(path).with(user(OWNER).roles("STUDENT")))
+        .andExpect(jsonPath("$.items[0].schedule.date").value(DATE.toString()))
+        .andExpect(jsonPath("$.total").value(1));
+    mvc.perform(get("/api/v2/availability").param("roomId", ROOM.toString())
+            .param("date", DATE.toString()).param("startTime", "13:00").param("endTime", "15:00"))
+        .andExpect(jsonPath("$.available").value(true))
+        .andExpect(jsonPath("$.schedule.startTime").value("13:00"))
+        .andExpect(jsonPath("$.startTime").doesNotExist());
+    mvc.perform(get("/api/v1/reservations/" + id).with(user(OWNER).roles("STUDENT")))
+        .andExpect(jsonPath("$.startTime").value("13:00"));
+  }
+
+  @Test
   void createCallsRoomOverHttpAndPersistsPending() throws Exception {
     var result =
         postBody(payload())

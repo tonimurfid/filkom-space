@@ -46,6 +46,27 @@ class RoomIntegrationTest {
   }
 
   @Test
+  void v2RoomRoutesEnforceAdminAndShareDataWithV1() throws Exception {
+    var path = "/api/v2/rooms";
+    mvc.perform(post(path).with(user("student").roles("STUDENT"))
+            .contentType(MediaType.APPLICATION_JSON).content(payload))
+        .andExpect(status().isForbidden());
+    mvc.perform(post(path).with(user("admin").roles("ADMIN"))
+            .contentType(MediaType.APPLICATION_JSON)
+            .content("{\"isActive\":false," + payload.substring(1)))
+        .andExpect(status().isBadRequest());
+    var response = mvc.perform(post(path).with(user("admin").roles("ADMIN"))
+            .contentType(MediaType.APPLICATION_JSON).content(payload))
+        .andExpect(status().isCreated())
+        .andExpect(jsonPath("$.isActive").value(true)).andReturn().getResponse();
+    String id = json.readTree(response.getContentAsString()).get("id").asText();
+    Assertions.assertEquals(path + "/" + id, response.getHeader("Location"));
+    mvc.perform(get(path + "/" + id)).andExpect(status().isOk());
+    mvc.perform(get(path).param("minCapacity", "8")).andExpect(jsonPath("$.total").value(1));
+    mvc.perform(get("/api/v1/rooms/" + id)).andExpect(status().isOk());
+  }
+
+  @Test
   void createPersistsAndPublicGetReturnsContract() throws Exception {
     var response = json.readTree(createRoom());
     UUID.fromString(response.get("id").asText());
