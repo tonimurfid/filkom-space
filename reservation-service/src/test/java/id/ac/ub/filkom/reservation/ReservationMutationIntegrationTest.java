@@ -115,4 +115,102 @@ class ReservationMutationIntegrationTest {
         .andExpect(status().isServiceUnavailable());
     Assertions.assertEquals(ReservationStatus.PENDING, repo.findById(r.id).orElseThrow().status);
   }
+
+  String replacement(Reservation reservation) {
+    return "{\"roomId\":\"" + ROOM + "\",\"schedule\":{\"date\":\"" + reservation.date
+        + "\",\"startTime\":\"16:00\",\"endTime\":\"17:00\"},"
+        + "\"purpose\":\"Revisi diskusi\",\"participantCount\":5}";
+  }
+
+  org.springframework.test.web.servlet.ResultActions v2Decision(
+      UUID id, String state, boolean admin) throws Exception {
+    return mvc.perform(put("/api/v2/reservations/" + id + "/decision")
+        .with(admin ? user("admin").roles("ADMIN") : user(OWNER).roles("STUDENT"))
+        .contentType(MediaType.APPLICATION_JSON).content("{\"status\":\"" + state + "\"}"));
+  }
+
+  @Test
+  void v2ReplacePendingPreservesIdentityAndRejectsInvalidOrForeignUpdates() throws Exception {
+    var r = pending("13:00", "15:00");
+    var createdAt = repo.findById(r.id).orElseThrow().createdAt;
+    String path = "/api/v2/reservations/" + r.id;
+    mvc.perform(put(path).with(user(OWNER).roles("STUDENT"))
+        .contentType(MediaType.APPLICATION_JSON).content(replacement(r)))
+        .andExpect(status().isOk()).andExpect(jsonPath("$.schedule.startTime").value("16:00"))
+        .andExpect(jsonPath("$.studentId").value(OWNER))
+        .andExpect(jsonPath("$.id").value(r.id.toString()))
+        .andExpect(jsonPath("$.status").value("PENDING"));
+    mvc.perform(put(path).with(user("other").roles("STUDENT"))
+        .contentType(MediaType.APPLICATION_JSON).content(replacement(r)))
+        .andExpect(status().isForbidden());
+    mvc.perform(put(path).with(user(OWNER).roles("STUDENT"))
+        .contentType(MediaType.APPLICATION_JSON)
+        .content(replacement(r).replace("\"participantCount\":5", "\"participantCount\":20")))
+        .andExpect(status().isBadRequest());
+    Assertions.assertEquals(5, repo.findById(r.id).orElseThrow().participantCount);
+    Assertions.assertEquals(createdAt, repo.findById(r.id).orElseThrow().createdAt);
+  }
+
+  @Test
+  void v2DecisionIsIdempotentAndConflictingDecisionCannotOverwriteFinalState() throws Exception {
+    var r = pending("13:00", "15:00");
+    v2Decision(r.id, "APPROVED", false).andExpect(status().isForbidden());
+    v2Decision(r.id, "PENDING", true).andExpect(status().isBadRequest());
+    v2Decision(r.id, "APPROVED", true).andExpect(status().isOk());
+    v2Decision(r.id, "APPROVED", true).andExpect(status().isOk());
+    v2Decision(r.id, "REJECTED", true).andExpect(status().isConflict());
+    mvc.perform(put("/api/v2/reservations/" + r.id).with(user(OWNER).roles("STUDENT"))
+        .contentType(MediaType.APPLICATION_JSON).content(replacement(r)))
+        .andExpect(status().isConflict());
+  }
+
+  @Test
+  void v2CancellationOnlyOwnerCanCancelAndDeleteIsIdempotent() throws Exception {
+    var r = pending("13:00", "15:00");
+    v2Decision(r.id, "APPROVED", true).andExpect(status().isOk());
+    String path = "/api/v2/reservations/" + r.id;
+    mvc.perform(delete(path).with(user("other").roles("STUDENT")))
+        .andExpect(status().isForbidden());
+    mvc.perform(delete(path).with(user("admin").roles("ADMIN")))
+        .andExpect(status().isForbidden());
+    mvc.perform(delete(path).with(user(OWNER).roles("STUDENT")))
+        .andExpect(status().isNoContent()).andExpect(content().string(""));
+    mvc.perform(delete(path).with(user(OWNER).roles("STUDENT")))
+        .andExpect(status().isNoContent());
+    mvc.perform(get(path).with(user(OWNER).roles("STUDENT")))
+        .andExpect(jsonPath("$.status").value("CANCELLED"));
+    Assertions.assertEquals(1, repo.count());
+  }
+
+  @Test
+  void v2PatchApprovesAndCancelsWhileConflictAndDependencyFailuresKeepState() throws Exception {
+    var first = pending("13:00", "15:00");
+    var second = pending("14:00", "16:00");
+    mvc.perform(patch("/api/v2/reservations/" + first.id).with(user("admin").roles("ADMIN"))
+        .contentType(MediaType.APPLICATION_JSON).content("{\"status\":\"APPROVED\"}"))
+        .andExpect(status().isOk()).andExpect(jsonPath("$.schedule.startTime").value("13:00"));
+    v2Decision(second.id, "APPROVED", true).andExpect(status().isConflict());
+    mvc.perform(patch("/api/v2/reservations/" + first.id).with(user(OWNER).roles("STUDENT"))
+        .contentType(MediaType.APPLICATION_JSON).content("{\"status\":\"CANCELLED\"}"))
+        .andExpect(status().isOk());
+    when(client.get(ROOM)).thenThrow(new ApiException(503, "ROOM_SERVICE_UNAVAILABLE", "down"));
+    v2Decision(second.id, "APPROVED", true).andExpect(status().isServiceUnavailable());
+    Assertions.assertEquals(ReservationStatus.PENDING, repo.findById(second.id).orElseThrow().status);
+  }
+
+  @Test
+  void v2CannotReplaceStartedOrCancelRejectedReservation() throws Exception {
+    var started = pending("13:00", "15:00");
+    started.date = LocalDate.now(ZoneId.of("Asia/Jakarta")).minusDays(1);
+    repo.saveAndFlush(started);
+    mvc.perform(put("/api/v2/reservations/" + started.id).with(user(OWNER).roles("STUDENT"))
+        .contentType(MediaType.APPLICATION_JSON).content(replacement(started)))
+        .andExpect(status().isConflict());
+    mvc.perform(delete("/api/v2/reservations/" + started.id).with(user(OWNER).roles("STUDENT")))
+        .andExpect(status().isConflict());
+    var rejected = pending("16:00", "17:00");
+    v2Decision(rejected.id, "REJECTED", true).andExpect(status().isOk());
+    mvc.perform(delete("/api/v2/reservations/" + rejected.id).with(user(OWNER).roles("STUDENT")))
+        .andExpect(status().isConflict());
+  }
 }

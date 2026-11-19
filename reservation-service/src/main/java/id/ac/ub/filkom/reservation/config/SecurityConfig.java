@@ -37,18 +37,24 @@ public class SecurityConfig {
         .authorizeHttpRequests(
             a ->
                 a.requestMatchers(
-                        "/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**", "/openapi.yaml")
+                        "/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**", "/openapi.yaml", "/openapi-v2.yaml")
                     .permitAll()
                     .requestMatchers(HttpMethod.GET, "/api/v1/availability", "/api/v2/availability")
                     .permitAll()
                     .requestMatchers(HttpMethod.POST, "/api/v1/reservations", "/api/v2/reservations")
                     .hasAnyRole("STUDENT", "ADMIN")
-                    .requestMatchers(HttpMethod.PATCH, "/api/v1/reservations/*")
+                    .requestMatchers(HttpMethod.PATCH, "/api/v1/reservations/*", "/api/v2/reservations/*")
                     .hasAnyRole("STUDENT", "ADMIN")
                     .requestMatchers(
                         HttpMethod.GET, "/api/v1/reservations", "/api/v1/reservations/*",
                         "/api/v2/reservations", "/api/v2/reservations/*")
                     .hasAnyRole("ADMIN", "STUDENT")
+                    .requestMatchers(HttpMethod.PUT, "/api/v2/reservations/*/decision")
+                    .hasRole("ADMIN")
+                    .requestMatchers(HttpMethod.PUT, "/api/v2/reservations/*")
+                    .hasRole("STUDENT")
+                    .requestMatchers(HttpMethod.DELETE, "/api/v2/reservations/*")
+                    .hasRole("STUDENT")
                     .anyRequest()
                     .denyAll())
         .httpBasic(

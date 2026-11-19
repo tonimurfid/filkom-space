@@ -21,5 +21,10 @@ app:
   reservation-service-url: ${RESERVATION_SERVICE_BASE_URL:http://localhost:8082}
 springdoc:
   swagger-ui:
-    url: /openapi.yaml
+    urls:
+      - name: API v1
+        url: /openapi.yaml
+      - name: API v2
+        url: /openapi-v2.yaml
+    urls-primary-name: API v2
     disable-swagger-default-url: true

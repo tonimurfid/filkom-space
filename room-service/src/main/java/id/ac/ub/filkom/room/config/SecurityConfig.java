@@ -37,17 +37,17 @@ public class SecurityConfig {
         .authorizeHttpRequests(
             a ->
                 a.requestMatchers(
-                        "/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**", "/openapi.yaml")
+                        "/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**", "/openapi.yaml", "/openapi-v2.yaml")
                     .permitAll()
                     .requestMatchers(HttpMethod.GET, "/api/v1/rooms", "/api/v1/rooms/*", "/api/v2/rooms", "/api/v2/rooms/*")
                     .permitAll()
                      .requestMatchers(HttpMethod.POST, "/api/v1/rooms", "/api/v2/rooms")
                     .hasRole("ADMIN")
-                    .requestMatchers(HttpMethod.PUT, "/api/v1/rooms/*")
+                    .requestMatchers(HttpMethod.PUT, "/api/v1/rooms/*", "/api/v2/rooms/*")
                     .hasRole("ADMIN")
-                    .requestMatchers(HttpMethod.PATCH, "/api/v1/rooms/*/status")
+                    .requestMatchers(HttpMethod.PATCH, "/api/v1/rooms/*/status", "/api/v2/rooms/*/status")
                     .hasRole("ADMIN")
-                    .requestMatchers(HttpMethod.DELETE, "/api/v1/rooms/*")
+                    .requestMatchers(HttpMethod.DELETE, "/api/v1/rooms/*", "/api/v2/rooms/*")
                     .hasRole("ADMIN")
                     .requestMatchers(
                         HttpMethod.GET, "/api/v1/reservations", "/api/v1/reservations/*")

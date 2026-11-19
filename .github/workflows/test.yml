@@ -51,13 +51,13 @@ jobs:
         run: |
           cp .env.example .env
           docker compose up --build -d
-      - name: Exercise seven operations over real HTTP
+      - name: Exercise v1 and v2 operations over real HTTP
         shell: bash
         run: |
           set -a
           source .env
           set +a
-          python3 scripts/smoke.py
+          python3 scripts/smoke_v2.py
           python3 scripts/smoke_mutations.py
       - name: Container logs
         if: always()

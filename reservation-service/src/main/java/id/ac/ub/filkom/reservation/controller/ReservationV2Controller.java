@@ -1,6 +1,6 @@
 package id.ac.ub.filkom.reservation.controller;
 
-import id.ac.ub.filkom.reservation.dto.AvailabilityV2;
+import id.ac.ub.filkom.reservation.dto.*;
 import id.ac.ub.filkom.reservation.dto.CreateReservationV2Request;
 import id.ac.ub.filkom.reservation.dto.ItemList;
 import id.ac.ub.filkom.reservation.dto.ReservationV2Response;
@@ -55,5 +55,36 @@ public class ReservationV2Controller {
         reservations.create(request.toCreateReservationRequest(), authentication));
     return ResponseEntity.created(URI.create("/api/v2/reservations/" + reservation.id()))
         .body(reservation);
+  }
+
+  @PutMapping("/reservations/{reservationId}")
+  public ReservationV2Response replace(
+      @PathVariable UUID reservationId,
+      @Valid @RequestBody ReplaceReservationV2Request request, Authentication authentication) {
+    return ReservationV2Response.from(
+        reservations.replaceV2(reservationId, request, authentication));
+  }
+
+  @PutMapping("/reservations/{reservationId}/decision")
+  public ReservationV2Response decide(
+      @PathVariable UUID reservationId,
+      @Valid @RequestBody UpdateReservationV2StatusRequest request, Authentication authentication) {
+    return ReservationV2Response.from(
+        reservations.decideV2(reservationId, request, authentication));
+  }
+
+  @PatchMapping("/reservations/{reservationId}")
+  public ReservationV2Response patchStatus(
+      @PathVariable UUID reservationId,
+      @Valid @RequestBody UpdateReservationV2StatusRequest request, Authentication authentication) {
+    return ReservationV2Response.from(
+        reservations.patchStatusV2(reservationId, request, authentication));
+  }
+
+  @DeleteMapping("/reservations/{reservationId}")
+  public ResponseEntity<Void> cancel(
+      @PathVariable UUID reservationId, Authentication authentication) {
+    reservations.cancelV2(reservationId, null, authentication);
+    return ResponseEntity.noContent().build();
   }
 }

@@ -2,7 +2,7 @@ package id.ac.ub.filkom.room.controller;
 
 import id.ac.ub.filkom.room.dto.ItemList;
 import id.ac.ub.filkom.room.dto.RoomResponse;
-import id.ac.ub.filkom.room.dto.CreateRoomV2Request;
+import id.ac.ub.filkom.room.dto.*;
 import id.ac.ub.filkom.room.service.RoomService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Min;
@@ -37,5 +37,23 @@ public class RoomV2Controller {
   public ResponseEntity<RoomResponse> create(@Valid @RequestBody CreateRoomV2Request request) {
     var room = rooms.create(request.toCreateRoomRequest());
     return ResponseEntity.created(URI.create("/api/v2/rooms/" + room.id())).body(room);
+  }
+
+  @PutMapping("/{roomId}")
+  public RoomResponse replace(
+      @PathVariable UUID roomId, @Valid @RequestBody ReplaceRoomV2Request request) {
+    return rooms.replaceV2(roomId, request);
+  }
+
+  @PatchMapping("/{roomId}/status")
+  public RoomResponse changeStatus(
+      @PathVariable UUID roomId, @Valid @RequestBody UpdateRoomV2StatusRequest request) {
+    return rooms.changeStatus(roomId, new UpdateRoomStatusRequest(request.isActive()));
+  }
+
+  @DeleteMapping("/{roomId}")
+  public ResponseEntity<Void> archive(@PathVariable UUID roomId) {
+    rooms.archive(roomId);
+    return ResponseEntity.noContent().build();
   }
 }
