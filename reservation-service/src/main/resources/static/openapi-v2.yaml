@@ -1,0 +1,747 @@
+openapi: 3.0.3
+info:
+  title: FILKOM Space API
+  version: 2.0.0
+  description: Dokumentasi kontrak API v2 yang diimplementasikan pada layanan ini.
+servers:
+- url: http://localhost:8082
+  description: Reservation Service lokal (rancangan v2)
+tags:
+- name: Room Service
+  description: Data dan status ruangan.
+- name: Reservation Service
+  description: Reservasi dan ketersediaan ruangan.
+paths:
+  /api/v2/availability:
+    servers:
+    - url: http://localhost:8082
+    get:
+      tags:
+      - Reservation Service
+      operationId: checkAvailabilityV2
+      summary: Memeriksa ketersediaan ruangan
+      description: Parameter GET tetap berupa query sederhana. Respons mengelompokkan
+        waktu dalam schedule. Hanya reservasi APPROVED yang memblokir slot.
+      parameters:
+      - $ref: '#/components/parameters/RoomIdQuery'
+      - $ref: '#/components/parameters/DateQuery'
+      - $ref: '#/components/parameters/StartTimeQuery'
+      - $ref: '#/components/parameters/EndTimeQuery'
+      responses:
+        '200':
+          description: Hasil pemeriksaan slot.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Availability'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+  /api/v2/reservations:
+    servers:
+    - url: http://localhost:8082
+    get:
+      tags:
+      - Reservation Service
+      operationId: listReservationsV2
+      summary: Melihat daftar reservasi sesuai hak akses
+      description: Mahasiswa hanya dapat melihat miliknya. ADMIN dapat melihat seluruh
+        data dan memakai filter roomId untuk pemeriksaan pengarsipan ruangan.
+      security:
+      - basicAuth: []
+      parameters:
+      - name: studentId
+        in: query
+        description: Filter pemilik; mahasiswa hanya boleh memakai ID sendiri.
+        schema:
+          type: string
+      - name: status
+        in: query
+        schema:
+          type: string
+          enum:
+          - PENDING
+          - APPROVED
+          - REJECTED
+          - CANCELLED
+      - name: roomId
+        in: query
+        description: Hanya ADMIN atau service account yang berwenang.
+        schema:
+          type: string
+          format: uuid
+      responses:
+        '200':
+          description: Daftar reservasi.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReservationList'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      tags:
+      - Reservation Service
+      operationId: createReservationV2
+      summary: Mengajukan reservasi
+      description: Pemohon terautentikasi. studentId pada body harus sama dengan identitas
+        akun. Ruangan harus aktif, jadwal harus di masa depan, peserta tidak boleh
+        melebihi kapasitas, dan jadwal tidak boleh bentrok dengan APPROVED. Status
+        awal adalah PENDING.
+      security:
+      - basicAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateReservationRequest'
+      responses:
+        '201':
+          description: Reservasi PENDING dibuat.
+          headers:
+            Location:
+              description: URL detail reservasi baru.
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Reservation'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+  /api/v2/reservations/{reservationId}:
+    servers:
+    - url: http://localhost:8082
+    parameters:
+    - $ref: '#/components/parameters/ReservationId'
+    get:
+      tags:
+      - Reservation Service
+      operationId: getReservationV2
+      summary: Melihat detail reservasi
+      description: Hanya ADMIN atau mahasiswa pemilik.
+      security:
+      - basicAuth: []
+      responses:
+        '200':
+          description: Detail reservasi.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Reservation'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    put:
+      tags:
+      - Reservation Service
+      operationId: replaceReservationV2
+      summary: Mengganti detail reservasi yang masih PENDING
+      description: Hanya mahasiswa pemilik, sebelum jadwal dimulai. Seluruh field
+        yang dapat diubah wajib dikirim. studentId, id, status, dan createdAt tidak
+        berubah. Ruangan, kapasitas, waktu, dan konflik jadwal divalidasi ulang.
+      security:
+      - basicAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReplaceReservationRequest'
+      responses:
+        '200':
+          description: Detail reservasi diganti.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Reservation'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+    delete:
+      tags:
+      - Reservation Service
+      operationId: cancelReservationV2
+      summary: Membatalkan reservasi milik sendiri
+      description: Hanya mahasiswa pemilik, sebelum jadwal dimulai. PENDING atau APPROVED
+        berubah menjadi CANCELLED; data historis tetap tersimpan. Pengulangan DELETE
+        pada reservasi yang sudah CANCELLED menghasilkan 204. Reservasi REJECTED tidak
+        dapat dibatalkan.
+      security:
+      - basicAuth: []
+      responses:
+        '204':
+          description: Reservasi dibatalkan atau sudah CANCELLED; tanpa body.
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+    patch:
+      tags:
+      - Reservation Service
+      operationId: patchReservationStatusV2
+      summary: Memperbarui status reservasi
+      description: ADMIN dapat menyetujui atau menolak PENDING. Mahasiswa pemilik
+        dapat membatalkan PENDING atau APPROVED sebelum jadwal dimulai. Pengulangan
+        status tujuan yang sama menghasilkan 200; transisi berbeda dari status akhir
+        menghasilkan 409.
+      security:
+      - basicAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required:
+              - status
+              properties:
+                status:
+                  type: string
+                  enum:
+                  - APPROVED
+                  - REJECTED
+                  - CANCELLED
+                reason:
+                  type: string
+                  maxLength: 255
+      responses:
+        '200':
+          description: Status reservasi diperbarui.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Reservation'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+  /api/v2/reservations/{reservationId}/decision:
+    servers:
+    - url: http://localhost:8082
+    parameters:
+    - $ref: '#/components/parameters/ReservationId'
+    put:
+      tags:
+      - Reservation Service
+      operationId: decideReservationV2
+      summary: Menyetujui atau menolak reservasi
+      description: Hanya ADMIN. PENDING dapat menjadi APPROVED atau REJECTED. Keputusan
+        APPROVED memeriksa ulang status ruangan, kapasitas, dan benturan jadwal secara
+        atomik. Pengulangan keputusan yang sama dapat menghasilkan 200; keputusan
+        berbeda setelah status akhir menghasilkan 409.
+      security:
+      - basicAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DecisionRequest'
+      responses:
+        '200':
+          description: Keputusan tersimpan.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Reservation'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+components:
+  securitySchemes:
+    basicAuth:
+      type: http
+      scheme: basic
+      description: Akun uji lokal; gunakan HTTPS jika diakses melalui jaringan publik.
+  parameters:
+    RoomId:
+      name: roomId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    ReservationId:
+      name: reservationId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    RoomIdQuery:
+      name: roomId
+      in: query
+      required: true
+      schema:
+        type: string
+        format: uuid
+    DateQuery:
+      name: date
+      in: query
+      required: true
+      schema:
+        type: string
+        format: date
+    StartTimeQuery:
+      name: startTime
+      in: query
+      required: true
+      schema:
+        $ref: '#/components/schemas/LocalTime'
+    EndTimeQuery:
+      name: endTime
+      in: query
+      required: true
+      schema:
+        $ref: '#/components/schemas/LocalTime'
+  responses:
+    BadRequest:
+      description: Input tidak valid.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Unauthorized:
+      description: Autentikasi diperlukan.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Forbidden:
+      description: Hak akses tidak cukup.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    NotFound:
+      description: Data tidak ditemukan.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Conflict:
+      description: Konflik data, jadwal, atau perubahan status.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    ServiceUnavailable:
+      description: Layanan pendukung tidak tersedia.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+  schemas:
+    LocalTime:
+      type: string
+      pattern: ^([01][0-9]|2[0-3]):[0-5][0-9]$
+      example: '13:00'
+    Schedule:
+      type: object
+      additionalProperties: false
+      required:
+      - date
+      - startTime
+      - endTime
+      description: Tanggal dan jam lokal Asia/Jakarta (WIB). endTime harus lebih besar
+        dari startTime dan rentang waktu tidak melintasi tanggal.
+      properties:
+        date:
+          type: string
+          format: date
+          example: '2026-12-02'
+        startTime:
+          $ref: '#/components/schemas/LocalTime'
+        endTime:
+          $ref: '#/components/schemas/LocalTime'
+      example:
+        date: '2026-12-02'
+        startTime: '13:00'
+        endTime: '15:00'
+    RoomFields:
+      type: object
+      additionalProperties: false
+      required:
+      - code
+      - name
+      - building
+      - floor
+      - capacity
+      - facilities
+      properties:
+        code:
+          type: string
+          minLength: 3
+          maxLength: 30
+          example: R-DISKUSI-01
+        name:
+          type: string
+          minLength: 3
+          maxLength: 100
+          example: Ruang Diskusi A
+        building:
+          type: string
+          minLength: 1
+          example: Gedung G
+        floor:
+          type: integer
+          minimum: 1
+          example: 2
+        capacity:
+          type: integer
+          minimum: 1
+          example: 8
+        facilities:
+          type: array
+          items:
+            type: string
+          example:
+          - WIFI
+          - PROYEKTOR
+    CreateRoomRequest:
+      allOf:
+      - $ref: '#/components/schemas/RoomFields'
+    ReplaceRoomRequest:
+      type: object
+      additionalProperties: false
+      required:
+      - code
+      - name
+      - building
+      - floor
+      - capacity
+      - facilities
+      - isActive
+      properties:
+        code:
+          type: string
+          minLength: 3
+          maxLength: 30
+        name:
+          type: string
+          minLength: 3
+          maxLength: 100
+        building:
+          type: string
+          minLength: 1
+        floor:
+          type: integer
+          minimum: 1
+        capacity:
+          type: integer
+          minimum: 1
+        facilities:
+          type: array
+          items:
+            type: string
+        isActive:
+          type: boolean
+      example:
+        code: R-DISKUSI-01
+        name: Ruang Diskusi A
+        building: Gedung G
+        floor: 2
+        capacity: 10
+        facilities:
+        - WIFI
+        - PROYEKTOR
+        isActive: true
+    Room:
+      type: object
+      required:
+      - id
+      - code
+      - name
+      - building
+      - floor
+      - capacity
+      - facilities
+      - isActive
+      properties:
+        id:
+          type: string
+          format: uuid
+        code:
+          type: string
+        name:
+          type: string
+        building:
+          type: string
+        floor:
+          type: integer
+        capacity:
+          type: integer
+          minimum: 1
+        facilities:
+          type: array
+          items:
+            type: string
+        isActive:
+          type: boolean
+      example:
+        id: c9a2cb2e-7cb9-49ab-bde5-a76a21930b1f
+        code: R-DISKUSI-01
+        name: Ruang Diskusi A
+        building: Gedung G
+        floor: 2
+        capacity: 8
+        facilities:
+        - WIFI
+        - PROYEKTOR
+        isActive: true
+    RoomList:
+      type: object
+      required:
+      - items
+      - total
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Room'
+        total:
+          type: integer
+          minimum: 0
+    ReservationFields:
+      type: object
+      additionalProperties: false
+      required:
+      - roomId
+      - schedule
+      - purpose
+      - participantCount
+      properties:
+        roomId:
+          type: string
+          format: uuid
+        schedule:
+          $ref: '#/components/schemas/Schedule'
+        purpose:
+          type: string
+          minLength: 5
+          maxLength: 255
+        participantCount:
+          type: integer
+          minimum: 1
+    CreateReservationRequest:
+      type: object
+      additionalProperties: false
+      required:
+      - roomId
+      - studentId
+      - schedule
+      - purpose
+      - participantCount
+      properties:
+        roomId:
+          type: string
+          format: uuid
+        studentId:
+          type: string
+          minLength: 5
+        schedule:
+          $ref: '#/components/schemas/Schedule'
+        purpose:
+          type: string
+          minLength: 5
+          maxLength: 255
+        participantCount:
+          type: integer
+          minimum: 1
+      example:
+        roomId: c9a2cb2e-7cb9-49ab-bde5-a76a21930b1f
+        studentId: '235150200111001'
+        schedule:
+          date: '2026-12-02'
+          startTime: '13:00'
+          endTime: '15:00'
+        purpose: Diskusi penelitian
+        participantCount: 6
+    ReplaceReservationRequest:
+      allOf:
+      - $ref: '#/components/schemas/ReservationFields'
+      example:
+        roomId: c9a2cb2e-7cb9-49ab-bde5-a76a21930b1f
+        schedule:
+          date: '2026-12-02'
+          startTime: '14:00'
+          endTime: '16:00'
+        purpose: Diskusi penelitian lanjutan
+        participantCount: 6
+    Reservation:
+      type: object
+      required:
+      - id
+      - roomId
+      - studentId
+      - schedule
+      - purpose
+      - participantCount
+      - status
+      - createdAt
+      properties:
+        id:
+          type: string
+          format: uuid
+        roomId:
+          type: string
+          format: uuid
+        studentId:
+          type: string
+        schedule:
+          $ref: '#/components/schemas/Schedule'
+        purpose:
+          type: string
+        participantCount:
+          type: integer
+          minimum: 1
+        status:
+          type: string
+          enum:
+          - PENDING
+          - APPROVED
+          - REJECTED
+          - CANCELLED
+        createdAt:
+          type: string
+          format: date-time
+      example:
+        id: 1dc1b394-24a6-4265-bd93-d2d137fc8fe5
+        roomId: c9a2cb2e-7cb9-49ab-bde5-a76a21930b1f
+        studentId: '235150200111001'
+        schedule:
+          date: '2026-12-02'
+          startTime: '13:00'
+          endTime: '15:00'
+        purpose: Diskusi penelitian
+        participantCount: 6
+        status: PENDING
+        createdAt: '2026-11-12T10:00:00+07:00'
+    DecisionRequest:
+      type: object
+      additionalProperties: false
+      required:
+      - status
+      properties:
+        status:
+          type: string
+          enum:
+          - APPROVED
+          - REJECTED
+        reason:
+          type: string
+          maxLength: 255
+      example:
+        status: APPROVED
+        reason: Ruangan tersedia.
+    ReservationList:
+      type: object
+      required:
+      - items
+      - total
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Reservation'
+        total:
+          type: integer
+          minimum: 0
+    Availability:
+      type: object
+      required:
+      - roomId
+      - schedule
+      - available
+      properties:
+        roomId:
+          type: string
+          format: uuid
+        schedule:
+          $ref: '#/components/schemas/Schedule'
+        available:
+          type: boolean
+      example:
+        roomId: c9a2cb2e-7cb9-49ab-bde5-a76a21930b1f
+        schedule:
+          date: '2026-12-02'
+          startTime: '13:00'
+          endTime: '15:00'
+        available: true
+    ErrorResponse:
+      type: object
+      required:
+      - status
+      - code
+      - message
+      - path
+      properties:
+        status:
+          type: integer
+          example: 409
+        code:
+          type: string
+          example: SCHEDULE_CONFLICT
+        message:
+          type: string
+          example: Jadwal ruangan sudah terisi.
+        path:
+          type: string
+          example: /api/v2/reservations

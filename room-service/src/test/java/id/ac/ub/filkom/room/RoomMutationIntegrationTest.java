@@ -116,4 +116,42 @@ class RoomMutationIntegrationTest {
         .andExpect(status().isForbidden());
     mvc.perform(delete("/api/v1/rooms/" + id)).andExpect(status().isUnauthorized());
   }
+
+  @Test
+  void v2ReplacementRequiresActiveAndPatchPreservesMetadata() throws Exception {
+    var id = create();
+    String path = "/api/v2/rooms/" + id;
+    mvc.perform(put(path).with(user("admin").roles("ADMIN"))
+        .contentType(MediaType.APPLICATION_JSON).content(BODY)).andExpect(status().isBadRequest());
+    String replacement = BODY.substring(0, BODY.length() - 1) + ",\"isActive\":false}";
+    mvc.perform(put(path).with(user("admin").roles("ADMIN"))
+        .contentType(MediaType.APPLICATION_JSON).content(replacement))
+        .andExpect(status().isOk()).andExpect(jsonPath("$.isActive").value(false));
+    mvc.perform(patch(path + "/status").with(user("admin").roles("ADMIN"))
+        .contentType(MediaType.APPLICATION_JSON).content("{\"isActive\":true}"))
+        .andExpect(status().isOk()).andExpect(jsonPath("$.isActive").value(true))
+        .andExpect(jsonPath("$.name").value("Ruang Penelitian"));
+    mvc.perform(patch(path + "/status").with(user("admin").roles("ADMIN"))
+        .contentType(MediaType.APPLICATION_JSON).content("{\"isActive\":true,\"capacity\":3}"))
+        .andExpect(status().isBadRequest());
+    mvc.perform(put(path).with(user("student").roles("STUDENT"))
+        .contentType(MediaType.APPLICATION_JSON).content(replacement))
+        .andExpect(status().isForbidden());
+  }
+
+  @Test
+  void v2ArchiveProtectsBookingsAndRepeatsAfterSuccess() throws Exception {
+    var id = create();
+    String path = "/api/v2/rooms/" + id;
+    when(reservationClient.hasFutureBookings(id)).thenReturn(true);
+    mvc.perform(delete(path).with(user("admin").roles("ADMIN")))
+        .andExpect(status().isConflict());
+    when(reservationClient.hasFutureBookings(id)).thenReturn(false);
+    mvc.perform(delete(path).with(user("admin").roles("ADMIN")))
+        .andExpect(status().isNoContent()).andExpect(content().string(""));
+    mvc.perform(delete(path).with(user("admin").roles("ADMIN")))
+        .andExpect(status().isNoContent());
+    mvc.perform(get(path)).andExpect(status().isNotFound());
+    Assertions.assertEquals(1, repo.count());
+  }
 }

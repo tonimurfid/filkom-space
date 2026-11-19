@@ -21,5 +21,10 @@ app:
   approval-pg-locks: ${APPROVAL_PG_LOCKS:true}
 springdoc:
   swagger-ui:
-    url: /openapi.yaml
+    urls:
+      - name: API v1
+        url: /openapi.yaml
+      - name: API v2
+        url: /openapi-v2.yaml
+    urls-primary-name: API v2
     disable-swagger-default-url: true

@@ -109,7 +109,7 @@ public class ReservationService {
     if (req.status() == null || req.status() == ReservationStatus.PENDING)
       throw new ApiException(400, "INVALID_STATUS", "Status tujuan tidak diizinkan.");
 
-    var r = reservations.findById(id).orElseThrow(() ->
+    var r = reservations.findForUpdate(id).orElseThrow(() ->
         new ApiException(404, "RESERVATION_NOT_FOUND", "Reservasi tidak ditemukan."));
     if (!admin(a) && !r.studentId.equals(a.getName())) forbidden();
 
@@ -147,6 +147,67 @@ public class ReservationService {
     r.status = req.status();
     r.decisionReason = req.reason();
     return ReservationResponse.from(reservations.saveAndFlush(r));
+  }
+
+  private Reservation lockedReservation(UUID id) {
+    return reservations.findForUpdate(id).orElseThrow(() ->
+        new ApiException(404, "RESERVATION_NOT_FOUND", "Reservasi tidak ditemukan."));
+  }
+
+  @Transactional
+  public ReservationResponse replaceV2(
+      UUID id, ReplaceReservationV2Request request, Authentication authentication) {
+    var reservation = lockedReservation(id);
+    if (admin(authentication) || !reservation.studentId.equals(authentication.getName())) forbidden();
+    if (reservation.status != ReservationStatus.PENDING)
+      throw new ApiException(409, "INVALID_STATUS_TRANSITION", "Hanya PENDING dapat diganti.");
+    if (!reservation.date.atTime(reservation.startTime).isAfter(LocalDateTime.now(clock)))
+      throw new ApiException(409, "RESERVATION_STARTED", "Reservasi sudah dimulai.");
+    var start = time(request.schedule().startTime());
+    var end = time(request.schedule().endTime());
+    schedule(request.schedule().date(), start, end);
+    approvalLock.acquire(request.roomId(), request.schedule().date());
+    var targetRoom = room(request.roomId());
+    if (request.participantCount() > targetRoom.capacity())
+      throw new ApiException(400, "CAPACITY_EXCEEDED", "Jumlah peserta melebihi kapasitas.");
+    if (reservations.overlaps(request.roomId(), request.schedule().date(), start, end))
+      throw new ApiException(409, "SCHEDULE_CONFLICT", "Ruangan sudah dipesan.");
+    reservation.roomId = request.roomId();
+    reservation.date = request.schedule().date();
+    reservation.startTime = start;
+    reservation.endTime = end;
+    reservation.purpose = request.purpose();
+    reservation.participantCount = request.participantCount();
+    return ReservationResponse.from(reservations.saveAndFlush(reservation));
+  }
+
+  @Transactional
+  public ReservationResponse decideV2(
+      UUID id, UpdateReservationV2StatusRequest request, Authentication authentication) {
+    if (!admin(authentication)) forbidden();
+    if (request.status() != ReservationStatus.APPROVED
+        && request.status() != ReservationStatus.REJECTED)
+      throw new ApiException(400, "INVALID_STATUS", "Keputusan harus APPROVED atau REJECTED.");
+    var reservation = lockedReservation(id);
+    if (reservation.status == request.status()) return ReservationResponse.from(reservation);
+    return updateStatus(id,
+        new UpdateReservationStatusRequest(request.status(), request.reason()), authentication);
+  }
+
+  @Transactional
+  public ReservationResponse cancelV2(UUID id, String reason, Authentication authentication) {
+    var reservation = lockedReservation(id);
+    if (admin(authentication) || !reservation.studentId.equals(authentication.getName())) forbidden();
+    if (reservation.status == ReservationStatus.CANCELLED) return ReservationResponse.from(reservation);
+    return updateStatus(id,
+        new UpdateReservationStatusRequest(ReservationStatus.CANCELLED, reason), authentication);
+  }
+
+  @Transactional
+  public ReservationResponse patchStatusV2(
+      UUID id, UpdateReservationV2StatusRequest request, Authentication authentication) {
+    if (request.status() == ReservationStatus.CANCELLED) return cancelV2(id, request.reason(), authentication);
+    return decideV2(id, request, authentication);
   }
 
   @Transactional

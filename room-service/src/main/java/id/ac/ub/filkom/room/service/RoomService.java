@@ -87,6 +87,12 @@ public class RoomService {
   }
 
   @Transactional
+  public RoomResponse replaceV2(UUID id, ReplaceRoomV2Request request) {
+    replace(id, request.toReplacement());
+    return changeStatus(id, new UpdateRoomStatusRequest(request.isActive()));
+  }
+
+  @Transactional
   public RoomResponse changeStatus(UUID id, UpdateRoomStatusRequest req) {
     var room = existing(id);
     room.isActive = req.isActive();

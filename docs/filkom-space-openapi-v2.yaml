@@ -4,7 +4,7 @@ info:
   version: 2.0.0
   description: >-
     Rancangan kontrak API versi 2.0 untuk prototipe akademik FILKOM Space.
-    Berkas ini belum merepresentasikan endpoint yang telah diimplementasikan.
+    Operasi GET, POST, PUT, PATCH, dan DELETE tersedia pada kedua layanan.
     Data ruangan dan mahasiswa pada contoh bersifat simulasi.
 servers:
   - url: http://localhost:8081
@@ -125,6 +125,37 @@ paths:
         '404': {$ref: '#/components/responses/NotFound'}
         '409': {$ref: '#/components/responses/Conflict'}
         '503': {$ref: '#/components/responses/ServiceUnavailable'}
+  /api/v2/rooms/{roomId}/status:
+    servers:
+      - url: http://localhost:8081
+    parameters:
+      - $ref: '#/components/parameters/RoomId'
+    patch:
+      tags: [Room Service]
+      operationId: patchRoomStatusV2
+      summary: Mengubah status aktif ruangan
+      description: Hanya ADMIN. Field isActive wajib dikirim.
+      security: [{basicAuth: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [isActive]
+              properties:
+                isActive: {type: boolean}
+      responses:
+        '200':
+          description: Status aktif ruangan diperbarui.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Room'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
   /api/v2/availability:
     servers:
       - url: http://localhost:8082
@@ -278,6 +309,39 @@ paths:
         '403': {$ref: '#/components/responses/Forbidden'}
         '404': {$ref: '#/components/responses/NotFound'}
         '409': {$ref: '#/components/responses/Conflict'}
+    patch:
+      tags: [Reservation Service]
+      operationId: patchReservationStatusV2
+      summary: Memperbarui status reservasi
+      description: >-
+        ADMIN dapat menyetujui atau menolak PENDING. Mahasiswa pemilik dapat
+        membatalkan PENDING atau APPROVED sebelum jadwal dimulai. Pengulangan
+        status tujuan yang sama menghasilkan 200; transisi berbeda dari status
+        akhir menghasilkan 409.
+      security: [{basicAuth: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [status]
+              properties:
+                status: {type: string, enum: [APPROVED, REJECTED, CANCELLED]}
+                reason: {type: string, maxLength: 255}
+      responses:
+        '200':
+          description: Status reservasi diperbarui.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Reservation'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '503': {$ref: '#/components/responses/ServiceUnavailable'}
   /api/v2/reservations/{reservationId}/decision:
     servers:
       - url: http://localhost:8082
