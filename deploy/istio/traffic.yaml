@@ -1,0 +1,136 @@
+apiVersion: networking.istio.io/v1
+kind: Gateway
+metadata:
+  name: filkom-gateway
+  namespace: filkom-space
+spec:
+  selector:
+    istio: ingressgateway
+  servers:
+  - port:
+      number: 80
+      name: http
+      protocol: HTTP
+    hosts:
+    - '*'
+---
+apiVersion: networking.istio.io/v1
+kind: VirtualService
+metadata:
+  name: filkom-api
+  namespace: filkom-space
+spec:
+  hosts:
+  - '*'
+  gateways:
+  - filkom-gateway
+  http:
+  - name: room-api
+    match:
+    - uri:
+        exact: /api/v1/rooms
+    - uri:
+        prefix: /api/v1/rooms/
+    - uri:
+        exact: /api/v2/rooms
+    - uri:
+        prefix: /api/v2/rooms/
+    route:
+    - destination:
+        host: room-service.filkom-space.svc.cluster.local
+        port:
+          number: 8081
+    timeout: 15s
+    retries:
+      attempts: 0
+  - name: reservation-api
+    match:
+    - uri:
+        exact: /api/v1/reservations
+    - uri:
+        prefix: /api/v1/reservations/
+    - uri:
+        exact: /api/v1/availability
+    - uri:
+        prefix: /api/v1/availability/
+    - uri:
+        exact: /api/v2/reservations
+    - uri:
+        prefix: /api/v2/reservations/
+    - uri:
+        exact: /api/v2/availability
+    - uri:
+        prefix: /api/v2/availability/
+    route:
+    - destination:
+        host: reservation-service.filkom-space.svc.cluster.local
+        port:
+          number: 8082
+    timeout: 15s
+    retries:
+      attempts: 0
+---
+apiVersion: networking.istio.io/v1
+kind: VirtualService
+metadata:
+  name: room-docs
+  namespace: filkom-space
+spec:
+  hosts:
+  - room.filkom.local
+  gateways:
+  - filkom-gateway
+  http:
+  - route:
+    - destination:
+        host: room-service.filkom-space.svc.cluster.local
+        port:
+          number: 8081
+---
+apiVersion: networking.istio.io/v1
+kind: DestinationRule
+metadata:
+  name: room-mtls
+  namespace: filkom-space
+spec:
+  host: room-service.filkom-space.svc.cluster.local
+  trafficPolicy:
+    tls:
+      mode: ISTIO_MUTUAL
+---
+apiVersion: networking.istio.io/v1
+kind: VirtualService
+metadata:
+  name: reservation-docs
+  namespace: filkom-space
+spec:
+  hosts:
+  - reservation.filkom.local
+  gateways:
+  - filkom-gateway
+  http:
+  - route:
+    - destination:
+        host: reservation-service.filkom-space.svc.cluster.local
+        port:
+          number: 8082
+---
+apiVersion: networking.istio.io/v1
+kind: DestinationRule
+metadata:
+  name: reservation-mtls
+  namespace: filkom-space
+spec:
+  host: reservation-service.filkom-space.svc.cluster.local
+  trafficPolicy:
+    tls:
+      mode: ISTIO_MUTUAL
+---
+apiVersion: security.istio.io/v1
+kind: PeerAuthentication
+metadata:
+  name: default
+  namespace: filkom-space
+spec:
+  mtls:
+    mode: STRICT

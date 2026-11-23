@@ -1,0 +1,103 @@
+name: Minikube and Istio
+on:
+  push:
+    branches: [main, feat/deploy-minikube-istio]
+    paths:
+      - 'deploy/**'
+      - 'scripts/*minikube*'
+      - 'scripts/smoke_gateway.py'
+      - 'tests/postman/**'
+      - 'room-service/**'
+      - 'reservation-service/**'
+      - 'pom.xml'
+      - '.github/workflows/minikube-istio.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: minikube-istio-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  mesh-smoke:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    defaults:
+      run:
+        shell: bash
+    env:
+      MINIKUBE_PROFILE: filkom-space
+      MINIKUBE_CPUS: '2'
+      MINIKUBE_MEMORY: '6000'
+      KUBERNETES_VERSION: v1.35.0
+      ISTIO_VERSION: 1.32.0
+      MINIKUBE_VERSION: v1.39.0
+      EVIDENCE_DIR: evidence
+      RUN_NEWMAN: 'true'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install pinned Minikube, kubectl and Istio CLI
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/filkom-tools"
+          cd "$RUNNER_TEMP/filkom-tools"
+          curl --retry 3 -fLO "https://github.com/kubernetes/minikube/releases/download/${MINIKUBE_VERSION}/minikube-linux-amd64"
+          curl --retry 3 -fLO "https://github.com/kubernetes/minikube/releases/download/${MINIKUBE_VERSION}/minikube-linux-amd64.sha256"
+          echo "$(cat minikube-linux-amd64.sha256)  minikube-linux-amd64" | sha256sum --check
+          sudo install minikube-linux-amd64 /usr/local/bin/minikube
+          curl --retry 3 -fLO "https://dl.k8s.io/release/${KUBERNETES_VERSION}/bin/linux/amd64/kubectl"
+          curl --retry 3 -fLO "https://dl.k8s.io/release/${KUBERNETES_VERSION}/bin/linux/amd64/kubectl.sha256"
+          echo "$(cat kubectl.sha256)  kubectl" | sha256sum --check
+          sudo install kubectl /usr/local/bin/kubectl
+          curl --retry 3 -fLO "https://github.com/istio/istio/releases/download/${ISTIO_VERSION}/istio-${ISTIO_VERSION}-linux-amd64.tar.gz"
+          curl --retry 3 -fLO "https://github.com/istio/istio/releases/download/${ISTIO_VERSION}/istio-${ISTIO_VERSION}-linux-amd64.tar.gz.sha256"
+          sha256sum --check "istio-${ISTIO_VERSION}-linux-amd64.tar.gz.sha256"
+          tar -xzf "istio-${ISTIO_VERSION}-linux-amd64.tar.gz"
+          sudo install "istio-${ISTIO_VERSION}/bin/istioctl" /usr/local/bin/istioctl
+      - name: Generate isolated CI credentials
+        shell: bash
+        run: |
+          for variable in ROOM_DB_PASSWORD RESERVATION_DB_PASSWORD DEMO_ADMIN_PASSWORD DEMO_STUDENT_PASSWORD; do
+            value=$(openssl rand -hex 18)
+            echo "::add-mask::$value"
+            echo "$variable=$value" >> "$GITHUB_ENV"
+          done
+          echo 'ROOM_DB_USERNAME=room_user' >> "$GITHUB_ENV"
+          echo 'RESERVATION_DB_USERNAME=reservation_user' >> "$GITHUB_ENV"
+      - name: Deploy two services and PostgreSQL databases into Minikube with Istio
+        run: bash scripts/deploy_minikube.sh 2>&1 | tee deployment.log
+      - name: Verify sidecars, ingress API operations and STRICT mTLS
+        run: bash scripts/verify_minikube.sh 2>&1 | tee verification.log
+      - name: Diagnostics and job summary
+        if: always()
+        shell: bash
+        run: |
+          mkdir -p evidence
+          kubectl --context filkom-space -n filkom-space get pods,pvc,services -o wide > evidence/final-cluster.txt 2>&1 || true
+          kubectl --context filkom-space -n filkom-space get events --sort-by=.lastTimestamp > evidence/events.txt 2>&1 || true
+          for service in room-service reservation-service; do
+            kubectl --context filkom-space -n filkom-space logs deployment/$service -c $service --tail=120 > evidence/$service.log 2>&1 || true
+          done
+          kubectl --context filkom-space -n istio-system logs deployment/istio-ingressgateway --tail=100 > evidence/ingress.log 2>&1 || true
+          {
+            echo '## FILKOM Space: Minikube + Istio'
+            echo "Commit: $GITHUB_SHA"
+            echo
+            echo '```text'
+            cat evidence/final-cluster.txt
+            test ! -f evidence/gateway-smoke.txt || cat evidence/gateway-smoke.txt
+            test ! -f evidence/mtls-negative.txt || cat evidence/mtls-negative.txt
+            test ! -f evidence/newman.txt || tail -20 evidence/newman.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: minikube-istio-evidence
+          path: |
+            evidence/
+            deployment.log
+            verification.log
+      - name: Stop dedicated CI cluster
+        if: always()
+        run: minikube delete -p filkom-space || true

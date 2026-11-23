@@ -5,3 +5,8 @@
 .vscode/
 __pycache__/
 *.pyc
+
+# Generated Kubernetes/mesh evidence and local tooling
+evidence/
+deployment.log
+verification.log

@@ -1,0 +1,1402 @@
+{
+  "info": {
+    "name": "FILKOM Space API v2 PUT PATCH DELETE",
+    "description": "Pengujian mutasi v2. Isi roomBase, reservationBase, adminPassword, studentPassword sebelum menjalankan. POST hanya membuat fixture simulasi. Jalankan seluruh koleksi berurutan.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "roomBase",
+      "value": "http://localhost:8081"
+    },
+    {
+      "key": "reservationBase",
+      "value": "http://localhost:8082"
+    },
+    {
+      "key": "adminPassword",
+      "value": ""
+    },
+    {
+      "key": "studentPassword",
+      "value": ""
+    },
+    {
+      "key": "studentId",
+      "value": "235150200111001"
+    }
+  ],
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "if (!pm.collectionVariables.get(\"roomCode\")) pm.collectionVariables.set(\"roomCode\", \"PMV2-\" + Date.now());",
+          "if (!pm.collectionVariables.get(\"date\")) pm.collectionVariables.set(\"date\", new Date(Date.now()+7*86400000).toISOString().slice(0,10));"
+        ]
+      }
+    }
+  ],
+  "item": [
+    {
+      "name": "01 Persiapan POST ruangan",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{roomBase}}/api/v2/rooms",
+        "auth": {
+          "type": "basic",
+          "basic": [
+            {
+              "key": "username",
+              "value": "admin",
+              "type": "string"
+            },
+            {
+              "key": "password",
+              "value": "{{adminPassword}}",
+              "type": "string"
+            }
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"code\": \"{{roomCode}}\",\n  \"name\": \"Ruang Postman V2\",\n  \"building\": \"Gedung Simulasi\",\n  \"floor\": 2,\n  \"capacity\": 10,\n  \"facilities\": [\n    \"WIFI\",\n    \"PROYEKTOR\"\n  ]\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 201\", function () { pm.response.to.have.status(201); });",
+              "var responseBody = pm.response.json();",
+              "pm.test(\"Location v2\", function () { pm.expect(pm.response.headers.get(\"Location\")).to.eql(\"/api/v2/rooms/\"+responseBody.id); });",
+              "if (pm.response.code === 201) pm.collectionVariables.set(\"roomId\", responseBody.id);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "02 PUT seluruh field dan status aktif",
+      "request": {
+        "method": "PUT",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{roomBase}}/api/v2/rooms/{{roomId}}",
+        "auth": {
+          "type": "basic",
+          "basic": [
+            {
+              "key": "username",
+              "value": "admin",
+              "type": "string"
+            },
+            {
+              "key": "password",
+              "value": "{{adminPassword}}",
+              "type": "string"
+            }
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"code\": \"{{roomCode}}\",\n  \"name\": \"Ruang Postman Revisi\",\n  \"building\": \"Gedung Simulasi\",\n  \"floor\": 2,\n  \"capacity\": 12,\n  \"facilities\": [\n    \"WIFI\",\n    \"PROYEKTOR\"\n  ],\n  \"isActive\": false\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
+              "var responseBody = pm.response.json();",
+              "pm.test(\"Metadata dan isActive terganti\", function () { pm.expect(responseBody.capacity).to.eql(12); pm.expect(responseBody.name).to.eql(\"Ruang Postman Revisi\"); pm.expect(responseBody.isActive).to.eql(false); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "03 PUT tanpa field wajib isActive",
+      "request": {
+        "method": "PUT",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{roomBase}}/api/v2/rooms/{{roomId}}",
+        "auth": {
+          "type": "basic",
+          "basic": [
+            {
+              "key": "username",
+              "value": "admin",
+              "type": "string"
+            },
+            {
+              "key": "password",
+              "value": "{{adminPassword}}",
+              "type": "string"
+            }
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"code\": \"{{roomCode}}\",\n  \"name\": \"Ruang Postman V2\",\n  \"building\": \"Gedung Simulasi\",\n  \"floor\": 2,\n  \"capacity\": 10,\n  \"facilities\": [\n    \"WIFI\",\n    \"PROYEKTOR\"\n  ]\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 400\", function () { pm.response.to.have.status(400); });",
+              "var responseBody = pm.response.json();",
+              "pm.test(\"Struktur error\", function () { [\"status\",\"code\",\"message\",\"path\"].forEach(k => pm.expect(responseBody).to.have.property(k)); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "04 PUT oleh mahasiswa",
+      "request": {
+        "method": "PUT",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{roomBase}}/api/v2/rooms/{{roomId}}",
+        "auth": {
+          "type": "basic",
+          "basic": [
+            {
+              "key": "username",
+              "value": "{{studentId}}",
+              "type": "string"
+            },
+            {
+              "key": "password",
+              "value": "{{studentPassword}}",
+              "type": "string"
+            }
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"code\": \"{{roomCode}}\",\n  \"name\": \"Ruang Postman Revisi\",\n  \"building\": \"Gedung Simulasi\",\n  \"floor\": 2,\n  \"capacity\": 12,\n  \"facilities\": [\n    \"WIFI\",\n    \"PROYEKTOR\"\n  ],\n  \"isActive\": false\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 403\", function () { pm.response.to.have.status(403); });",
+              "var responseBody = pm.response.json();",
+              "pm.test(\"Struktur error\", function () { [\"status\",\"code\",\"message\",\"path\"].forEach(k => pm.expect(responseBody).to.have.property(k)); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "05 PATCH aktifkan ruangan",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{roomBase}}/api/v2/rooms/{{roomId}}/status",
+        "auth": {
+          "type": "basic",
+          "basic": [
+            {
+              "key": "username",
+              "value": "admin",
+              "type": "string"
+            },
+            {
+              "key": "password",
+              "value": "{{adminPassword}}",
+              "type": "string"
+            }
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"isActive\": true\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
+              "var responseBody = pm.response.json();",
+              "pm.test(\"Status aktif dan metadata\", function () { pm.expect(responseBody.isActive).to.eql(true); pm.expect(responseBody.capacity).to.eql(12); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "06 PATCH field tambahan ditolak",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{roomBase}}/api/v2/rooms/{{roomId}}/status",
+        "auth": {
+          "type": "basic",
+          "basic": [
+            {
+              "key": "username",
+              "value": "admin",
+              "type": "string"
+            },
+            {
+              "key": "password",
+              "value": "{{adminPassword}}",
+              "type": "string"
+            }
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"isActive\": false,\n  \"capacity\": 1\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 400\", function () { pm.response.to.have.status(400); });",
+              "var responseBody = pm.response.json();",
+              "pm.test(\"Struktur error\", function () { [\"status\",\"code\",\"message\",\"path\"].forEach(k => pm.expect(responseBody).to.have.property(k)); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "07 GET detail setelah perubahan",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{roomBase}}/api/v2/rooms/{{roomId}}",
+        "auth": {
+          "type": "noauth"
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
+              "var responseBody = pm.response.json();",
+              "pm.test(\"Perubahan tersimpan\", function () { pm.expect(responseBody.isActive).to.eql(true); pm.expect(responseBody.name).to.eql(\"Ruang Postman Revisi\"); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "08 POST pengajuan PENDING",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{reservationBase}}/api/v2/reservations",
+        "auth": {
+          "type": "basic",
+          "basic": [
+            {
+              "key": "username",
+              "value": "{{studentId}}",
+              "type": "string"
+            },
+            {
+              "key": "password",
+              "value": "{{studentPassword}}",
+              "type": "string"
+            }
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"roomId\": \"{{roomId}}\",\n  \"studentId\": \"{{studentId}}\",\n  \"schedule\": {\n    \"date\": \"{{date}}\",\n    \"startTime\": \"13:00\",\n    \"endTime\": \"15:00\"\n  },\n  \"purpose\": \"Diskusi pengujian Postman\",\n  \"participantCount\": 5\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 201\", function () { pm.response.to.have.status(201); });",
+              "var responseBody = pm.response.json();",
+              "pm.test(\"Jadwal v2\", function () { pm.expect(responseBody.schedule.startTime).to.eql(\"13:00\"); pm.expect(responseBody).not.to.have.property(\"startTime\"); });",
+              "if (pm.response.code === 201) pm.collectionVariables.set(\"reservationId\", responseBody.id);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "09 PUT pengajuan PENDING",
+      "request": {
+        "method": "PUT",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{reservationBase}}/api/v2/reservations/{{reservationId}}",
+        "auth": {
+          "type": "basic",
+          "basic": [
+            {
+              "key": "username",
+              "value": "{{studentId}}",
+              "type": "string"
+            },
+            {
+              "key": "password",
+              "value": "{{studentPassword}}",
+              "type": "string"
+            }
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"roomId\": \"{{roomId}}\",\n  \"schedule\": {\n    \"date\": \"{{date}}\",\n    \"startTime\": \"13:00\",\n    \"endTime\": \"15:00\"\n  },\n  \"purpose\": \"Revisi pengajuan Postman\",\n  \"participantCount\": 5\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
+              "var responseBody = pm.response.json();",
+              "pm.test(\"Jadwal v2\", function () { pm.expect(responseBody.schedule.startTime).to.eql(\"13:00\"); pm.expect(responseBody).not.to.have.property(\"startTime\"); });",
+              "pm.test(\"Pemilik dan status dipertahankan\", function () { pm.expect(responseBody.studentId).to.eql(pm.collectionVariables.get(\"studentId\")); pm.expect(responseBody.status).to.eql(\"PENDING\"); pm.expect(responseBody.purpose).to.eql(\"Revisi pengajuan Postman\"); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "10 PUT melebihi kapasitas",
+      "request": {
+        "method": "PUT",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{reservationBase}}/api/v2/reservations/{{reservationId}}",
+        "auth": {
+          "type": "basic",
+          "basic": [
+            {
+              "key": "username",
+              "value": "{{studentId}}",
+              "type": "string"
+            },
+            {
+              "key": "password",
+              "value": "{{studentPassword}}",
+              "type": "string"
+            }
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"roomId\": \"{{roomId}}\",\n  \"schedule\": {\n    \"date\": \"{{date}}\",\n    \"startTime\": \"13:00\",\n    \"endTime\": \"15:00\"\n  },\n  \"purpose\": \"Revisi pengajuan Postman\",\n  \"participantCount\": 20\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 400\", function () { pm.response.to.have.status(400); });",
+              "var responseBody = pm.response.json();",
+              "pm.test(\"Struktur error\", function () { [\"status\",\"code\",\"message\",\"path\"].forEach(k => pm.expect(responseBody).to.have.property(k)); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "11 PUT keputusan oleh mahasiswa",
+      "request": {
+        "method": "PUT",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{reservationBase}}/api/v2/reservations/{{reservationId}}/decision",
+        "auth": {
+          "type": "basic",
+          "basic": [
+            {
+              "key": "username",
+              "value": "{{studentId}}",
+              "type": "string"
+            },
+            {
+              "key": "password",
+              "value": "{{studentPassword}}",
+              "type": "string"
+            }
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"status\": \"APPROVED\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 403\", function () { pm.response.to.have.status(403); });",
+              "var responseBody = pm.response.json();",
+              "pm.test(\"Struktur error\", function () { [\"status\",\"code\",\"message\",\"path\"].forEach(k => pm.expect(responseBody).to.have.property(k)); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "12 PUT keputusan APPROVED",
+      "request": {
+        "method": "PUT",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{reservationBase}}/api/v2/reservations/{{reservationId}}/decision",
+        "auth": {
+          "type": "basic",
+          "basic": [
+            {
+              "key": "username",
+              "value": "admin",
+              "type": "string"
+            },
+            {
+              "key": "password",
+              "value": "{{adminPassword}}",
+              "type": "string"
+            }
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"status\": \"APPROVED\",\n  \"reason\": \"Kapasitas dan jadwal sesuai\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
+              "var responseBody = pm.response.json();",
+              "pm.test(\"Keputusan disimpan\", function () { pm.expect(responseBody.status).to.eql(\"APPROVED\"); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "13 PUT keputusan sama diulang",
+      "request": {
+        "method": "PUT",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{reservationBase}}/api/v2/reservations/{{reservationId}}/decision",
+        "auth": {
+          "type": "basic",
+          "basic": [
+            {
+              "key": "username",
+              "value": "admin",
+              "type": "string"
+            },
+            {
+              "key": "password",
+              "value": "{{adminPassword}}",
+              "type": "string"
+            }
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"status\": \"APPROVED\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
+              "var responseBody = pm.response.json();",
+              "pm.test(\"APPROVED dipertahankan\", function () { pm.expect(responseBody.status).to.eql(\"APPROVED\"); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "14 PUT keputusan berbeda ditolak",
+      "request": {
+        "method": "PUT",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{reservationBase}}/api/v2/reservations/{{reservationId}}/decision",
+        "auth": {
+          "type": "basic",
+          "basic": [
+            {
+              "key": "username",
+              "value": "admin",
+              "type": "string"
+            },
+            {
+              "key": "password",
+              "value": "{{adminPassword}}",
+              "type": "string"
+            }
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"status\": \"REJECTED\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 409\", function () { pm.response.to.have.status(409); });",
+              "var responseBody = pm.response.json();",
+              "pm.test(\"Struktur error\", function () { [\"status\",\"code\",\"message\",\"path\"].forEach(k => pm.expect(responseBody).to.have.property(k)); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "15 PUT pengajuan APPROVED ditolak",
+      "request": {
+        "method": "PUT",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{reservationBase}}/api/v2/reservations/{{reservationId}}",
+        "auth": {
+          "type": "basic",
+          "basic": [
+            {
+              "key": "username",
+              "value": "{{studentId}}",
+              "type": "string"
+            },
+            {
+              "key": "password",
+              "value": "{{studentPassword}}",
+              "type": "string"
+            }
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"roomId\": \"{{roomId}}\",\n  \"schedule\": {\n    \"date\": \"{{date}}\",\n    \"startTime\": \"13:00\",\n    \"endTime\": \"15:00\"\n  },\n  \"purpose\": \"Revisi pengajuan Postman\",\n  \"participantCount\": 5\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 409\", function () { pm.response.to.have.status(409); });",
+              "var responseBody = pm.response.json();",
+              "pm.test(\"Struktur error\", function () { [\"status\",\"code\",\"message\",\"path\"].forEach(k => pm.expect(responseBody).to.have.property(k)); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "16 DELETE ruangan dengan reservasi aktif",
+      "request": {
+        "method": "DELETE",
+        "header": [],
+        "url": "{{roomBase}}/api/v2/rooms/{{roomId}}",
+        "auth": {
+          "type": "basic",
+          "basic": [
+            {
+              "key": "username",
+              "value": "admin",
+              "type": "string"
+            },
+            {
+              "key": "password",
+              "value": "{{adminPassword}}",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 409\", function () { pm.response.to.have.status(409); });",
+              "var responseBody = pm.response.json();",
+              "pm.test(\"Struktur error\", function () { [\"status\",\"code\",\"message\",\"path\"].forEach(k => pm.expect(responseBody).to.have.property(k)); });",
+              "pm.test(\"Perlindungan reservasi\", function () { pm.expect(responseBody.code).to.eql(\"ROOM_HAS_RESERVATIONS\"); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "17 PATCH pembatalan oleh pemilik",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{reservationBase}}/api/v2/reservations/{{reservationId}}",
+        "auth": {
+          "type": "basic",
+          "basic": [
+            {
+              "key": "username",
+              "value": "{{studentId}}",
+              "type": "string"
+            },
+            {
+              "key": "password",
+              "value": "{{studentPassword}}",
+              "type": "string"
+            }
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"status\": \"CANCELLED\",\n  \"reason\": \"Kegiatan dibatalkan\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
+              "var responseBody = pm.response.json();",
+              "pm.test(\"Status CANCELLED\", function () { pm.expect(responseBody.status).to.eql(\"CANCELLED\"); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "18 DELETE reservasi CANCELLED",
+      "request": {
+        "method": "DELETE",
+        "header": [],
+        "url": "{{reservationBase}}/api/v2/reservations/{{reservationId}}",
+        "auth": {
+          "type": "basic",
+          "basic": [
+            {
+              "key": "username",
+              "value": "{{studentId}}",
+              "type": "string"
+            },
+            {
+              "key": "password",
+              "value": "{{studentPassword}}",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 204\", function () { pm.response.to.have.status(204); });",
+              "pm.test(\"Body kosong\", function () { pm.expect(pm.response.text()).to.eql(\"\"); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "19 DELETE reservasi diulang",
+      "request": {
+        "method": "DELETE",
+        "header": [],
+        "url": "{{reservationBase}}/api/v2/reservations/{{reservationId}}",
+        "auth": {
+          "type": "basic",
+          "basic": [
+            {
+              "key": "username",
+              "value": "{{studentId}}",
+              "type": "string"
+            },
+            {
+              "key": "password",
+              "value": "{{studentPassword}}",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 204\", function () { pm.response.to.have.status(204); });",
+              "pm.test(\"Body kosong\", function () { pm.expect(pm.response.text()).to.eql(\"\"); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "20 POST pengajuan kedua",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{reservationBase}}/api/v2/reservations",
+        "auth": {
+          "type": "basic",
+          "basic": [
+            {
+              "key": "username",
+              "value": "{{studentId}}",
+              "type": "string"
+            },
+            {
+              "key": "password",
+              "value": "{{studentPassword}}",
+              "type": "string"
+            }
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"roomId\": \"{{roomId}}\",\n  \"studentId\": \"{{studentId}}\",\n  \"schedule\": {\n    \"date\": \"{{date}}\",\n    \"startTime\": \"13:00\",\n    \"endTime\": \"15:00\"\n  },\n  \"purpose\": \"Diskusi pengujian Postman\",\n  \"participantCount\": 5\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 201\", function () { pm.response.to.have.status(201); });",
+              "var responseBody = pm.response.json();",
+              "if (pm.response.code === 201) pm.collectionVariables.set(\"reservationId\", responseBody.id);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "21 PATCH approval oleh mahasiswa ditolak",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{reservationBase}}/api/v2/reservations/{{reservationId}}",
+        "auth": {
+          "type": "basic",
+          "basic": [
+            {
+              "key": "username",
+              "value": "{{studentId}}",
+              "type": "string"
+            },
+            {
+              "key": "password",
+              "value": "{{studentPassword}}",
+              "type": "string"
+            }
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"status\": \"APPROVED\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 403\", function () { pm.response.to.have.status(403); });",
+              "var responseBody = pm.response.json();",
+              "pm.test(\"Struktur error\", function () { [\"status\",\"code\",\"message\",\"path\"].forEach(k => pm.expect(responseBody).to.have.property(k)); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "22 PATCH approval oleh ADMIN",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{reservationBase}}/api/v2/reservations/{{reservationId}}",
+        "auth": {
+          "type": "basic",
+          "basic": [
+            {
+              "key": "username",
+              "value": "admin",
+              "type": "string"
+            },
+            {
+              "key": "password",
+              "value": "{{adminPassword}}",
+              "type": "string"
+            }
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"status\": \"APPROVED\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
+              "var responseBody = pm.response.json();",
+              "pm.test(\"Status APPROVED\", function () { pm.expect(responseBody.status).to.eql(\"APPROVED\"); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "23 DELETE tanpa autentikasi",
+      "request": {
+        "method": "DELETE",
+        "header": [],
+        "url": "{{reservationBase}}/api/v2/reservations/{{reservationId}}",
+        "auth": {
+          "type": "noauth"
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 401\", function () { pm.response.to.have.status(401); });",
+              "var responseBody = pm.response.json();",
+              "pm.test(\"Struktur error\", function () { [\"status\",\"code\",\"message\",\"path\"].forEach(k => pm.expect(responseBody).to.have.property(k)); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "24 DELETE pembatalan oleh pemilik",
+      "request": {
+        "method": "DELETE",
+        "header": [],
+        "url": "{{reservationBase}}/api/v2/reservations/{{reservationId}}",
+        "auth": {
+          "type": "basic",
+          "basic": [
+            {
+              "key": "username",
+              "value": "{{studentId}}",
+              "type": "string"
+            },
+            {
+              "key": "password",
+              "value": "{{studentPassword}}",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 204\", function () { pm.response.to.have.status(204); });",
+              "pm.test(\"Body kosong\", function () { pm.expect(pm.response.text()).to.eql(\"\"); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "25 GET riwayat setelah pembatalan",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{reservationBase}}/api/v2/reservations/{{reservationId}}",
+        "auth": {
+          "type": "basic",
+          "basic": [
+            {
+              "key": "username",
+              "value": "{{studentId}}",
+              "type": "string"
+            },
+            {
+              "key": "password",
+              "value": "{{studentPassword}}",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
+              "var responseBody = pm.response.json();",
+              "pm.test(\"Riwayat CANCELLED tersedia\", function () { pm.expect(responseBody.status).to.eql(\"CANCELLED\"); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "26 POST pengajuan untuk ditolak",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{reservationBase}}/api/v2/reservations",
+        "auth": {
+          "type": "basic",
+          "basic": [
+            {
+              "key": "username",
+              "value": "{{studentId}}",
+              "type": "string"
+            },
+            {
+              "key": "password",
+              "value": "{{studentPassword}}",
+              "type": "string"
+            }
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"roomId\": \"{{roomId}}\",\n  \"studentId\": \"{{studentId}}\",\n  \"schedule\": {\n    \"date\": \"{{date}}\",\n    \"startTime\": \"13:00\",\n    \"endTime\": \"15:00\"\n  },\n  \"purpose\": \"Diskusi pengujian Postman\",\n  \"participantCount\": 5\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 201\", function () { pm.response.to.have.status(201); });",
+              "var responseBody = pm.response.json();",
+              "if (pm.response.code === 201) pm.collectionVariables.set(\"reservationId\", responseBody.id);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "27 PUT keputusan REJECTED",
+      "request": {
+        "method": "PUT",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{reservationBase}}/api/v2/reservations/{{reservationId}}/decision",
+        "auth": {
+          "type": "basic",
+          "basic": [
+            {
+              "key": "username",
+              "value": "admin",
+              "type": "string"
+            },
+            {
+              "key": "password",
+              "value": "{{adminPassword}}",
+              "type": "string"
+            }
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"status\": \"REJECTED\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
+              "var responseBody = pm.response.json();",
+              "pm.test(\"Status REJECTED\", function () { pm.expect(responseBody.status).to.eql(\"REJECTED\"); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "28 DELETE reservasi REJECTED ditolak",
+      "request": {
+        "method": "DELETE",
+        "header": [],
+        "url": "{{reservationBase}}/api/v2/reservations/{{reservationId}}",
+        "auth": {
+          "type": "basic",
+          "basic": [
+            {
+              "key": "username",
+              "value": "{{studentId}}",
+              "type": "string"
+            },
+            {
+              "key": "password",
+              "value": "{{studentPassword}}",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 409\", function () { pm.response.to.have.status(409); });",
+              "var responseBody = pm.response.json();",
+              "pm.test(\"Struktur error\", function () { [\"status\",\"code\",\"message\",\"path\"].forEach(k => pm.expect(responseBody).to.have.property(k)); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "29 DELETE ruangan berhasil",
+      "request": {
+        "method": "DELETE",
+        "header": [],
+        "url": "{{roomBase}}/api/v2/rooms/{{roomId}}",
+        "auth": {
+          "type": "basic",
+          "basic": [
+            {
+              "key": "username",
+              "value": "admin",
+              "type": "string"
+            },
+            {
+              "key": "password",
+              "value": "{{adminPassword}}",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 204\", function () { pm.response.to.have.status(204); });",
+              "pm.test(\"Body kosong\", function () { pm.expect(pm.response.text()).to.eql(\"\"); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "30 DELETE ruangan diulang",
+      "request": {
+        "method": "DELETE",
+        "header": [],
+        "url": "{{roomBase}}/api/v2/rooms/{{roomId}}",
+        "auth": {
+          "type": "basic",
+          "basic": [
+            {
+              "key": "username",
+              "value": "admin",
+              "type": "string"
+            },
+            {
+              "key": "password",
+              "value": "{{adminPassword}}",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 204\", function () { pm.response.to.have.status(204); });",
+              "pm.test(\"Body kosong\", function () { pm.expect(pm.response.text()).to.eql(\"\"); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "31 GET arsip menghasilkan 404",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{roomBase}}/api/v2/rooms/{{roomId}}",
+        "auth": {
+          "type": "noauth"
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"HTTP 404\", function () { pm.response.to.have.status(404); });",
+              "var responseBody = pm.response.json();",
+              "pm.test(\"Struktur error\", function () { [\"status\",\"code\",\"message\",\"path\"].forEach(k => pm.expect(responseBody).to.have.property(k)); });"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

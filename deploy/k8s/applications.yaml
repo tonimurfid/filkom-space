@@ -1,0 +1,191 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: room-service
+  namespace: filkom-space
+  labels:
+    app: room-service
+spec:
+  selector:
+    app: room-service
+  ports:
+  - name: http
+    port: 8081
+    targetPort: http
+    appProtocol: http
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: room-service
+  namespace: filkom-space
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: room-service
+  template:
+    metadata:
+      labels:
+        app: room-service
+        version: v2
+      annotations:
+        proxy.istio.io/config: '{"holdApplicationUntilProxyStarts": true}'
+        sidecar.istio.io/proxyCPU: 50m
+        sidecar.istio.io/proxyMemory: 64Mi
+        sidecar.istio.io/proxyMemoryLimit: 256Mi
+    spec:
+      containers:
+      - name: room-service
+        image: filkom-space/room-service:minikube
+        imagePullPolicy: Never
+        ports:
+        - name: http
+          containerPort: 8081
+        envFrom:
+        - configMapRef:
+            name: filkom-config
+        env:
+        - name: DB_URL
+          value: jdbc:postgresql://room-db:5432/room_db
+        - name: DB_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: filkom-secrets
+              key: room-db-username
+        - name: DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: filkom-secrets
+              key: room-db-password
+        - name: DEMO_ADMIN_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: filkom-secrets
+              key: admin-password
+        - name: DEMO_STUDENT_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: filkom-secrets
+              key: student-password
+        resources:
+          requests:
+            cpu: 250m
+            memory: 384Mi
+          limits:
+            memory: 768Mi
+        startupProbe:
+          httpGet:
+            path: /api/v2/rooms
+            port: http
+          periodSeconds: 5
+          failureThreshold: 60
+        readinessProbe:
+          httpGet:
+            path: /api/v2/rooms
+            port: http
+          periodSeconds: 10
+          timeoutSeconds: 3
+        livenessProbe:
+          tcpSocket:
+            port: http
+          periodSeconds: 15
+          failureThreshold: 4
+  strategy:
+    type: Recreate
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: reservation-service
+  namespace: filkom-space
+  labels:
+    app: reservation-service
+spec:
+  selector:
+    app: reservation-service
+  ports:
+  - name: http
+    port: 8082
+    targetPort: http
+    appProtocol: http
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: reservation-service
+  namespace: filkom-space
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: reservation-service
+  template:
+    metadata:
+      labels:
+        app: reservation-service
+        version: v2
+      annotations:
+        proxy.istio.io/config: '{"holdApplicationUntilProxyStarts": true}'
+        sidecar.istio.io/proxyCPU: 50m
+        sidecar.istio.io/proxyMemory: 64Mi
+        sidecar.istio.io/proxyMemoryLimit: 256Mi
+    spec:
+      containers:
+      - name: reservation-service
+        image: filkom-space/reservation-service:minikube
+        imagePullPolicy: Never
+        ports:
+        - name: http
+          containerPort: 8082
+        envFrom:
+        - configMapRef:
+            name: filkom-config
+        env:
+        - name: DB_URL
+          value: jdbc:postgresql://reservation-db:5432/reservation_db
+        - name: DB_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: filkom-secrets
+              key: reservation-db-username
+        - name: DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: filkom-secrets
+              key: reservation-db-password
+        - name: DEMO_ADMIN_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: filkom-secrets
+              key: admin-password
+        - name: DEMO_STUDENT_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: filkom-secrets
+              key: student-password
+        resources:
+          requests:
+            cpu: 250m
+            memory: 384Mi
+          limits:
+            memory: 768Mi
+        startupProbe:
+          httpGet:
+            path: /v3/api-docs
+            port: http
+          periodSeconds: 5
+          failureThreshold: 60
+        readinessProbe:
+          httpGet:
+            path: /v3/api-docs
+            port: http
+          periodSeconds: 10
+          timeoutSeconds: 3
+        livenessProbe:
+          tcpSocket:
+            port: http
+          periodSeconds: 15
+          failureThreshold: 4
+  strategy:
+    type: Recreate
