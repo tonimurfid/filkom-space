@@ -17,7 +17,10 @@ for app in ['room-service','reservation-service']:
     active=[p for p in pods if p['metadata'].get('labels',{}).get('app')==app and not p['metadata'].get('deletionTimestamp')]
     assert active, app
     for pod in active:
-        statuses={s['name']:s['ready'] for s in pod['status']['containerStatuses']}
+        status=pod['status']
+        # Kubernetes native sidecars use initContainerStatuses (restartPolicy Always).
+        containers=status.get('containerStatuses', []) + status.get('initContainerStatuses', [])
+        statuses={s['name']:s.get('ready', False) for s in containers}
         assert statuses.get(app) and statuses.get('istio-proxy'), statuses
     print('PASS: '+app+' application and istio-proxy ready (2/2)')
 PY
