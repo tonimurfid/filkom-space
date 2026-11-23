@@ -69,6 +69,9 @@ def main():
             'purpose': 'Mesh smoke', 'participantCount': 6}
     booking = api('/api/v2/reservations', 'POST', body, STUDENT, 201)
     bp = '/api/v2/reservations/' + booking['id']
+    assert api('/api/v2/reservations', user=STUDENT)['total'] >= 1
+    assert api(bp, user=STUDENT)['schedule'] == body['schedule']
+    api('/api/v2/reservations', expected=401)
     update = {k: v for k, v in body.items() if k != 'studentId'}
     update['purpose'] = 'Mesh updated'
     replaced = api(bp, 'PUT', update, STUDENT)

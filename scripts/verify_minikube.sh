@@ -59,4 +59,12 @@ for host,port in [("room-service",8081),("reservation-service",8082)]:
     else:
         raise AssertionError(f"Plaintext unexpectedly reached {host}")
 ' | tee "$EVIDENCE_DIR/mtls-negative.txt"
+if [[ ${RUN_NEWMAN:-false} == true ]]; then
+  npx --yes --package=newman@6.2.1 newman run tests/postman/filkom-space-v2.postman_collection.json \
+    --env-var roomBase=http://127.0.0.1:18080 \
+    --env-var reservationBase=http://127.0.0.1:18080 \
+    --env-var "adminPassword=$DEMO_ADMIN_PASSWORD" \
+    --env-var "studentPassword=$DEMO_STUDENT_PASSWORD" \
+    --timeout-request 20000 --color off | tee "$EVIDENCE_DIR/newman.txt"
+fi
 printf '\nPASS: Minikube + Istio verification complete. Evidence: %s\n' "$EVIDENCE_DIR"

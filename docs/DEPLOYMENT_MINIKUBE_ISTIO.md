@@ -90,6 +90,8 @@ Untuk Postman, isi `roomBase` dan `reservationBase` dengan `http://127.0.0.1:180
 4. Memeriksa routing host dokumentasi per service.
 5. Mengirim GET dari Pod Python **tanpa sidecar** langsung ke kedua service dan memastikan koneksi plaintext ditolak pada lapisan transport oleh STRICT mTLS. Respons HTTP 401/403 tidak dianggap sebagai bukti penolakan mTLS.
 
+Koleksi Postman asli tersedia di `tests/postman/filkom-space-v2.postman_collection.json`. Workflow juga menjalankannya melalui Newman 6.2.1 pada gateway yang sama. Untuk menambahkan pelaksanaan ini di laptop, gunakan `RUN_NEWMAN=true bash scripts/verify_minikube.sh` (memerlukan Node.js/npm). Koleksi tersebut menjalankan 31 request dengan 62 assertion; GET/POST membentuk fixture dan memverifikasi hasil perubahan.
+
 Hasil aktual disimpan di `evidence/`: status Pod/PVC, konfigurasi mesh, output CLI, matriks respons HTTP JSON, serta hasil uji negatif mTLS. Tidak menyimpan password atau header Authorization dalam matriks hasil. Kubernetes Secret tidak diekspor.
 
 Workflow **Minikube and Istio** menjalankan langkah yang sama pada runner GitHub Actions dengan Docker dan cluster Minikube nyata. Artifact `minikube-istio-evidence` serta job summary menjadi sumber bukti CI. Status PASS hanya berlaku apabila run selesai berhasil; keberadaan file YAML saja tidak membuktikan deployment berhasil.

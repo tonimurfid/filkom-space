@@ -6,6 +6,7 @@ on:
       - 'deploy/**'
       - 'scripts/*minikube*'
       - 'scripts/smoke_gateway.py'
+      - 'tests/postman/**'
       - 'room-service/**'
       - 'reservation-service/**'
       - 'pom.xml'
@@ -31,6 +32,7 @@ jobs:
       ISTIO_VERSION: 1.32.0
       MINIKUBE_VERSION: v1.39.0
       EVIDENCE_DIR: evidence
+      RUN_NEWMAN: 'true'
     steps:
       - uses: actions/checkout@v4
       - name: Install pinned Minikube, kubectl and Istio CLI
@@ -85,6 +87,7 @@ jobs:
             cat evidence/final-cluster.txt
             test ! -f evidence/gateway-smoke.txt || cat evidence/gateway-smoke.txt
             test ! -f evidence/mtls-negative.txt || cat evidence/mtls-negative.txt
+            test ! -f evidence/newman.txt || tail -20 evidence/newman.txt
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@v4
