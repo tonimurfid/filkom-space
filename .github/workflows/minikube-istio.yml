@@ -20,6 +20,9 @@ jobs:
   mesh-smoke:
     runs-on: ubuntu-24.04
     timeout-minutes: 40
+    defaults:
+      run:
+        shell: bash
     env:
       MINIKUBE_PROFILE: filkom-space
       MINIKUBE_CPUS: '2'
