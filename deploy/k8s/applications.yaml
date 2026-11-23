@@ -91,6 +91,8 @@ spec:
             port: http
           periodSeconds: 15
           failureThreshold: 4
+  strategy:
+    type: Recreate
 ---
 apiVersion: v1
 kind: Service
@@ -185,3 +187,5 @@ spec:
             port: http
           periodSeconds: 15
           failureThreshold: 4
+  strategy:
+    type: Recreate
