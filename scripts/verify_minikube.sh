@@ -42,8 +42,9 @@ PY
 GATEWAY_BASE_URL=http://127.0.0.1:18080 python3 scripts/smoke_gateway.py | tee "$EVIDENCE_DIR/gateway-smoke.txt"
 # Public GET must fail at transport level from a Pod with no Envoy sidecar.
 # A 401/403 HTTP response would NOT prove mTLS rejection, and fails this check.
-k -n filkom-space run plaintext-probe --image=python:3.12-alpine \
-  --restart=Never --attach=true --rm --pod-running-timeout=180s \
+probe="plaintext-probe-$(date +%s)"
+k -n filkom-space run "$probe" --image=python:3.12-alpine \
+  --restart=Never \
   --annotations='sidecar.istio.io/inject=false' \
   --command -- python -u -c '
 import http.client, urllib.error, urllib.request
@@ -61,7 +62,15 @@ for host,port in [("room-service",8081),("reservation-service",8082)]:
         print(f"PASS: STRICT mTLS rejected plaintext to {host}: connection reset")
     else:
         raise AssertionError(f"Plaintext unexpectedly reached {host}")
-' | tee "$EVIDENCE_DIR/mtls-negative.txt"
+'
+if ! k -n filkom-space wait --for=jsonpath='{.status.phase}'=Succeeded "pod/$probe" --timeout=180s; then
+  k -n filkom-space logs "$probe" || true
+  k -n filkom-space get pod "$probe" -o yaml
+  exit 1
+fi
+k -n filkom-space logs "$probe" | tee "$EVIDENCE_DIR/mtls-negative.txt"
+k -n filkom-space get pod "$probe" -o json > "$EVIDENCE_DIR/mtls-probe.json"
+k -n filkom-space delete pod "$probe" --wait=false > /dev/null
 if [[ ${RUN_NEWMAN:-false} == true ]]; then
   npx --yes --package=newman@6.2.1 --package=newman-reporter-htmlextra@1.23.1 newman run tests/postman/filkom-space-v2.postman_collection.json \
     --env-var roomBase=http://127.0.0.1:18080 \
