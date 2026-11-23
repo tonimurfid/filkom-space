@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: filkom-config
+  namespace: filkom-space
+data:
+  DEMO_STUDENT_ID: '235150200111001'
+  SEED_DATA: 'true'
+  APPROVAL_PG_LOCKS: 'true'
+  ROOM_SERVICE_BASE_URL: http://room-service:8081
+  RESERVATION_SERVICE_BASE_URL: http://reservation-service:8082
+  JAVA_TOOL_OPTIONS: -XX:MaxRAMPercentage=70.0

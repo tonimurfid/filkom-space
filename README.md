@@ -2,7 +2,7 @@
 
 Prototipe akademik tugas Arsitektur Berbasis Layanan, FILKOM Universitas Brawijaya. Semua nama ruangan, gedung, dan akun demonstrasi adalah **simulasi**, bukan inventaris atau layanan resmi FILKOM UB.
 
-API v1.0 telah mengimplementasikan **GET, POST, PUT, PATCH, DELETE**. PUT/PATCH/DELETE berasal dari PR #2 (di atas fondasi PR #1). API v2 belum diimplementasikan.
+API v1.0 telah mengimplementasikan **GET, POST, PUT, PATCH, DELETE**. PUT/PATCH/DELETE berasal dari PR #2 (di atas fondasi PR #1). API v2.0 juga menyediakan GET, POST, PUT, PATCH, dan DELETE dengan struktur jadwal `schedule`.
 
 ## Arsitektur dan build
 
@@ -172,7 +172,7 @@ GitHub Actions juga memiliki job Compose untuk build/start dua service dan dua P
 ## Kontrak dan catatan sumber
 
 - [YAML v1 lengkap asli](docs/filkom-space-openapi-v1-complete.yaml) disimpan tanpa perubahan; menjadi acuan seluruh 11 operasi GET/POST/PUT/PATCH/DELETE.
-- [Rancangan OpenAPI v2](docs/filkom-space-openapi-v2.yaml) mendokumentasikan 12 operasi GET/POST/PUT/DELETE dengan jadwal reservasi dalam objek `schedule`. API v2 menyediakan 14 operasi GET/POST/PUT/PATCH/DELETE melalui deployment Compose yang sama. Swagger UI menyediakan pilihan API v1 dan API v2. PATCH status ruangan dan reservasi melengkapi kontrak v2.
+- [Rancangan OpenAPI v2](docs/filkom-space-openapi-v2.yaml) mendokumentasikan 14 operasi GET/POST/PUT/PATCH/DELETE dengan jadwal reservasi dalam objek `schedule`. API v2 menyediakan 14 operasi GET/POST/PUT/PATCH/DELETE melalui deployment Compose yang sama. Swagger UI menyediakan pilihan API v1 dan API v2. PATCH status ruangan dan reservasi melengkapi kontrak v2.
 - Swagger `/openapi.yaml` per service adalah subset seluruh operasi masing-masing service dari YAML asli. Swagger memperlihatkan kontrak yang dituju; `/v3/api-docs` memperlihatkan scanning implementasi.
 - DOCX menyebut PATCH reservasi `/{reservationId}/status`, sedangkan YAML memakai `/{reservationId}`. Implementasi mengikuti YAML: `PATCH /api/v1/reservations/{reservationId}`.
 - Placeholder `{id}` pada instruksi endpoint dinyatakan sebagai `{roomId}`/`{reservationId}` mengikuti YAML; URL aktual tetap sama.
@@ -193,4 +193,9 @@ GitHub Actions juga memiliki job Compose untuk build/start dua service dan dua P
 | Demo | `room-service/.../config/DemoData.java` | Seed data simulasi, opt-in |
 | Pengujian | `*/src/test/`, `.github/workflows/test.yml` | Unit, MockMvc, JPA, HTTP client, CI PostgreSQL |
 
-API v2, frontend, gateway, dan broker belum termasuk implementasi tahap ini.
+Frontend dan broker belum termasuk implementasi tahap ini. Deployment Kubernetes serta Istio gateway tersedia sebagai opsi demonstrasi di bawah.
+
+
+## Minikube dan Istio
+
+Deployment alternatif menggunakan Kubernetes/Minikube, dua PostgreSQL dengan PVC, sidecar Envoy, ingress routing, dan STRICT mTLS antarlayanan. Panduan dan perintah lengkap: [docs/DEPLOYMENT_MINIKUBE_ISTIO.md](docs/DEPLOYMENT_MINIKUBE_ISTIO.md). Workflow `Minikube and Istio` menjalankan deployment dan smoke test nyata serta mengunggah bukti eksekusi.
