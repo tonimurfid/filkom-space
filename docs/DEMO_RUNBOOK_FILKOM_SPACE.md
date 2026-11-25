@@ -35,10 +35,14 @@ Get-Content .env | ForEach-Object {
 $ROOM_URL = "http://127.0.0.1:18081"
 $RES_URL  = "http://127.0.0.1:18082"
 
-# 4. Siapkan header Basic Auth untuk akun Student (235150200111001)
+# 4. Siapkan header Basic Auth untuk akun Student (235150200111001) & Admin (opsional)
 $AUTH = "$($env:DEMO_STUDENT_ID):$($env:DEMO_STUDENT_PASSWORD)"
 $cred = [Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes($AUTH))
 $headers = @{ Authorization = "Basic $cred"; "Content-Type" = "application/json" }
+
+$ADMIN_AUTH = "admin:$($env:DEMO_ADMIN_PASSWORD)"
+$adminCred = [Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes($ADMIN_AUTH))
+$headersAdmin = @{ Authorization = "Basic $adminCred"; "Content-Type" = "application/json" }
 
 # 5. Bersihkan layar terminal sebelum share screen
 cls
@@ -62,6 +66,7 @@ set -a && source .env && set +a
 ROOM_URL="http://127.0.0.1:18081"
 RES_URL="http://127.0.0.1:18082"
 AUTH="${DEMO_STUDENT_ID}:${DEMO_STUDENT_PASSWORD}"
+ADMIN_AUTH="admin:${DEMO_ADMIN_PASSWORD}"
 clear
 ```
 
@@ -110,15 +115,22 @@ $bodyUpdate = @{
 } | ConvertTo-Json -Depth 4
 Invoke-RestMethod -Method Put -Uri "$RES_URL/api/v2/reservations/$RES_ID" -Headers $headers -Body $bodyUpdate | ConvertTo-Json -Depth 4
 
-# 5) Batalkan reservasi milik sendiri (DELETE -> 204 No Content) & cek status CANCELLED
+# 5) Batalkan reservasi dengan alasan (PATCH -> 200 OK), lalu uji DELETE idempoten (204 No Content) & cek status CANCELLED
+$bodyPatch = @{ status = "CANCELLED"; reason = "Jadwal diskusi dipindah ke minggu depan" } | ConvertTo-Json
+Invoke-RestMethod -Method Patch -Uri "$RES_URL/api/v2/reservations/$RES_ID" -Headers $headers -Body $bodyPatch | ConvertTo-Json -Depth 4
 Invoke-WebRequest -Method Delete -Uri "$RES_URL/api/v2/reservations/$RES_ID" -Headers $headers | Select-Object StatusCode, StatusDescription
 Invoke-RestMethod -Uri "$RES_URL/api/v2/reservations/$RES_ID" -Headers $headers | ConvertTo-Json -Depth 4
 ```
 
-*(Opsional bonus 5 detik — bukti RBAC Student tidak boleh membuat ruangan -> `403 Forbidden`)*:
+*(Opsional bonus — bukti RBAC Student `403 Forbidden`, lalu Admin Create Room `POST` & Patch Status `PATCH`)*:
 ```powershell
-$bodyRoom = '{"code":"TEST-403","name":"Test","building":"G","floor":1,"capacity":5,"facilities":["WIFI"]}'
+$bodyRoom = '{"code":"DEMO-G101","name":"Ruang Demo ABL","building":"Gedung G","floor":1,"capacity":12,"facilities":["WIFI","PROYEKTOR"]}'
+# Student -> 403 Forbidden
 try { Invoke-WebRequest -Method Post -Uri "$ROOM_URL/api/v2/rooms" -Headers $headers -Body $bodyRoom } catch { $_.Exception.Response.StatusCode.value__ }
+# Admin -> 201 Created & PATCH isActive=false -> 200 OK
+$newRoom = Invoke-RestMethod -Method Post -Uri "$ROOM_URL/api/v2/rooms" -Headers $headersAdmin -Body $bodyRoom
+$newRoom | ConvertTo-Json -Depth 4
+Invoke-RestMethod -Method Patch -Uri "$ROOM_URL/api/v2/rooms/$($newRoom.id)/status" -Headers $headersAdmin -Body '{"isActive":false}' | ConvertTo-Json -Depth 4
 ```
 
 ---
@@ -146,16 +158,30 @@ curl -s -u "$AUTH" -X PUT "${RES_URL}/api/v2/reservations/${RES_ID}" \
   -H "Content-Type: application/json" \
   -d "{\"roomId\":\"${ROOM_ID}\",\"schedule\":{\"date\":\"2026-12-10\",\"startTime\":\"14:00\",\"endTime\":\"16:00\"},\"purpose\":\"Diskusi & revisi proyek ABL\",\"participantCount\":6}" | python3 -m json.tool
 
-# 5) Batalkan reservasi (DELETE -> 204 No Content) & verifikasi status CANCELLED
+# 5) Batalkan reservasi dengan alasan (PATCH -> 200 OK), lalu uji DELETE idempoten (204 No Content) & verifikasi CANCELLED
+curl -s -u "$AUTH" -X PATCH "${RES_URL}/api/v2/reservations/${RES_ID}" \
+  -H "Content-Type: application/json" \
+  -d '{"status":"CANCELLED","reason":"Jadwal diskusi dipindah ke minggu depan"}' | python3 -m json.tool
 curl -i -s -u "$AUTH" -X DELETE "${RES_URL}/api/v2/reservations/${RES_ID}" | head -n 1
 curl -s -u "$AUTH" "${RES_URL}/api/v2/reservations/${RES_ID}" | python3 -m json.tool
 ```
 
-*(Opsional bonus 5 detik — bukti RBAC Student -> `403 Forbidden`)*:
+*(Opsional bonus — bukti RBAC Student `403 Forbidden`, lalu Admin Create Room `POST` & Patch Status `PATCH`)*:
 ```bash
+# Student -> 403 Forbidden
 curl -i -s -u "$AUTH" -X POST "${ROOM_URL}/api/v2/rooms" \
   -H "Content-Type: application/json" \
-  -d '{"code":"TEST-403","name":"Test","building":"G","floor":1,"capacity":5,"facilities":["WIFI"]}' | head -n 1
+  -d '{"code":"DEMO-G101","name":"Ruang Demo ABL","building":"Gedung G","floor":1,"capacity":12,"facilities":["WIFI","PROYEKTOR"]}' | head -n 1
+
+# Admin -> 201 Created & PATCH status isActive=false -> 200 OK
+NEW_ROOM=$(curl -s -u "$ADMIN_AUTH" -X POST "${ROOM_URL}/api/v2/rooms" \
+  -H "Content-Type: application/json" \
+  -d '{"code":"DEMO-G101","name":"Ruang Demo ABL","building":"Gedung G","floor":1,"capacity":12,"facilities":["WIFI","PROYEKTOR"]}')
+echo "$NEW_ROOM" | python3 -m json.tool
+NEW_ROOM_ID=$(echo "$NEW_ROOM" | python3 -c "import sys,json; print(json.load(sys.stdin)['id'])")
+curl -s -u "$ADMIN_AUTH" -X PATCH "${ROOM_URL}/api/v2/rooms/${NEW_ROOM_ID}/status" \
+  -H "Content-Type: application/json" \
+  -d '{"isActive":false}' | python3 -m json.tool
 ```
 
 ---
@@ -360,11 +386,14 @@ Buka tab **Environments** → **+** → beri nama `FILKOM Space Local`, lalu isi
 | `ROOM_BASE_URL` | `http://localhost:8081` | `http://127.0.0.1:18081` | `http://127.0.0.1:18080` |
 | `RES_BASE_URL` | `http://localhost:8082` | `http://127.0.0.1:18082` | `http://127.0.0.1:18080` |
 | `STUDENT_ID` | `235150200111001` | `235150200111001` | `235150200111001` |
-| `STUDENT_PASSWORD` | *(isi sesuai `.env`)* | *(isi sesuai `.env`)* | *(isi sesuai `.env`)* |
+| `STUDENT_PASSWORD` | *(isi `DEMO_STUDENT_PASSWORD` di `.env`)* | *(isi `DEMO_STUDENT_PASSWORD` di `.env`)* | *(isi `DEMO_STUDENT_PASSWORD` di `.env`)* |
+| `ADMIN_USERNAME` | `admin` | `admin` | `admin` |
+| `ADMIN_PASSWORD` | *(isi `DEMO_ADMIN_PASSWORD` di `.env`)* | *(isi `DEMO_ADMIN_PASSWORD` di `.env`)* | *(isi `DEMO_ADMIN_PASSWORD` di `.env`)* |
 | `ROOM_ID` | *(kosongkan — auto terisi)* | *(kosongkan — auto terisi)* | *(kosongkan — auto terisi)* |
 | `RES_ID` | *(kosongkan — auto terisi)* | *(kosongkan — auto terisi)* | *(kosongkan — auto terisi)* |
+| `NEW_ROOM_ID` | *(kosongkan — auto terisi)* | *(kosongkan — auto terisi)* | *(kosongkan — auto terisi)* |
 
-> **Tips Auth:** Request **1** dan **2** bersifat publik → set **Authorization Type: `No Auth`**. Request **3–6** memakai **Authorization Type: `Basic Auth`** dengan Username `{{STUDENT_ID}}` dan Password `{{STUDENT_PASSWORD}}`.
+> **Tips Auth:** Request **1** dan **2** bersifat publik → set **Authorization Type: `No Auth`**. Request **3–6** (Student) memakai **Basic Auth** (`{{STUDENT_ID}}` / `{{STUDENT_PASSWORD}}`). Request **C3** (Admin) memakai **Basic Auth** (`{{ADMIN_USERNAME}}` / `{{ADMIN_PASSWORD}}`). Jangan lupa isi di kolom **Current Value** dan tekan **`Ctrl+S` (Save)**.
 
 ---
 
@@ -433,12 +462,25 @@ Buka tab **Environments** → **+** → beri nama `FILKOM Space Local`, lalu isi
   ```
 - **Ekspektasi:** `200 OK`, jam berubah ke `14:00–16:00`, `participantCount: 6`, status tetap `PENDING`.
 
-#### 5a) Batalkan Reservasi Milik Sendiri
+#### 5a) Batalkan Reservasi dengan Alasan (`PATCH`)
+- **Method & URL:** `PATCH` `{{RES_BASE_URL}}/api/v2/reservations/{{RES_ID}}`
+- **Authorization:** `Basic Auth` → Username: `{{STUDENT_ID}}`, Password: `{{STUDENT_PASSWORD}}`
+- **Headers:** `Content-Type: application/json`
+- **Body → `raw` → `JSON`:**
+  ```json
+  {
+    "status": "CANCELLED",
+    "reason": "Jadwal diskusi dipindah ke minggu depan"
+  }
+  ```
+- **Ekspektasi:** `200 OK`, `"status": "CANCELLED"` beserta alasan tersimpan.
+
+#### 5b) Batalkan Reservasi via `DELETE` (Idempoten)
 - **Method & URL:** `DELETE` `{{RES_BASE_URL}}/api/v2/reservations/{{RES_ID}}`
 - **Authorization:** `Basic Auth` → Username: `{{STUDENT_ID}}`, Password: `{{STUDENT_PASSWORD}}`
-- **Ekspektasi:** `204 No Content`.
+- **Ekspektasi:** `204 No Content` *(tetap 204 meskipun sudah `CANCELLED` — bukti idempotency OpenAPI v2)*.
 
-#### 5b) Verifikasi Status Berubah Menjadi CANCELLED
+#### 5c) Verifikasi Detail Status `CANCELLED`
 - **Method & URL:** `GET` `{{RES_BASE_URL}}/api/v2/reservations/{{RES_ID}}`
 - **Authorization:** `Basic Auth` → Username: `{{STUDENT_ID}}`, Password: `{{STUDENT_PASSWORD}}`
 - **Ekspektasi:** `200 OK`, `"status": "CANCELLED"`.
@@ -459,5 +501,60 @@ Buka tab **Environments** → **+** → beri nama `FILKOM Space Local`, lalu isi
   }
   ```
 - **Ekspektasi:** `403 Forbidden`.
+
+---
+
+### C3. Operasi Admin di Postman (Opsional — Create Room & Patch Status)
+
+Gunakan akun Admin (`{{ADMIN_USERNAME}}` / `{{ADMIN_PASSWORD}}`) jika ingin mendemokan pembuatan ruangan baru (`POST`) dan pembaruan status parsial (`PATCH`):
+
+#### A1) Create Ruangan Baru (Admin)
+- **Method & URL:** `POST` `{{ROOM_BASE_URL}}/api/v2/rooms`
+- **Authorization:** `Basic Auth` → Username: `{{ADMIN_USERNAME}}`, Password: `{{ADMIN_PASSWORD}}`
+- **Headers:** `Content-Type: application/json`
+- **Body → `raw` → `JSON`:**
+  ```json
+  {
+    "code": "DEMO-G101",
+    "name": "Ruang Demo ABL",
+    "building": "Gedung G",
+    "floor": 1,
+    "capacity": 12,
+    "facilities": ["WIFI", "PROYEKTOR"]
+  }
+  ```
+- **Scripts → Post-response** *(opsional, agar `NEW_ROOM_ID` tersimpan otomatis)*:
+  ```javascript
+  const res = pm.response.json();
+  if (res.id) {
+    pm.environment.set("NEW_ROOM_ID", res.id);
+  }
+  ```
+- **Ekspektasi:** `201 Created`, `"isActive": true`.
+
+#### A2) Patch Status Aktif Ruangan (Admin)
+- **Method & URL:** `PATCH` `{{ROOM_BASE_URL}}/api/v2/rooms/{{NEW_ROOM_ID}}/status`
+- **Authorization:** `Basic Auth` → Username: `{{ADMIN_USERNAME}}`, Password: `{{ADMIN_PASSWORD}}`
+- **Headers:** `Content-Type: application/json`
+- **Body → `raw` → `JSON`:**
+  ```json
+  {
+    "isActive": false
+  }
+  ```
+- **Ekspektasi:** `200 OK`, `"isActive": false`.
+
+#### A3) Patch Keputusan Reservasi — Approve / Reject (Admin)
+- **Method & URL:** `PATCH` `{{RES_BASE_URL}}/api/v2/reservations/{{RES_ID}}` *(jalankan pada reservasi yang masih `PENDING`)*
+- **Authorization:** `Basic Auth` → Username: `{{ADMIN_USERNAME}}`, Password: `{{ADMIN_PASSWORD}}`
+- **Headers:** `Content-Type: application/json`
+- **Body → `raw` → `JSON`:**
+  ```json
+  {
+    "status": "APPROVED",
+    "reason": "Disetujui untuk diskusi proyek ABL"
+  }
+  ```
+- **Ekspektasi:** `200 OK`, `"status": "APPROVED"` *(atau ganti `"REJECTED"` untuk menolak)*.
 
 
