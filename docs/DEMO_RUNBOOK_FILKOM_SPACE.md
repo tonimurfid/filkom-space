@@ -14,6 +14,8 @@ Buka **2 terminal** di direktori root repositori `filkom-space`:
 - **Terminal 1:** Khusus *Live Demo API* (Slide 7)
 - **Terminal 2:** Khusus *Live Demo Automated Test* (Slide 8)
 
+> **Catatan Port Laptop Ini (`18081` & `18082`):** Karena port `8081`/`8082` di mesin ini dipakai layanan lokal lain, `docker-compose.override.yml` memetakan host port ke **`18081`** (`room-service`) dan **`18082`** (`reservation-service`). Jika dijalankan di mesin lain tanpa bentrok port, cukup ganti `ROOM_URL`/`RES_URL` ke `8081`/`8082`.
+
 ### A. PowerShell (Windows)
 
 **Di Terminal 1 (Nyalakan Docker Compose & load `.env`):**
@@ -29,12 +31,16 @@ Get-Content .env | ForEach-Object {
   }
 }
 
-# 3. Siapkan header Basic Auth untuk akun Student (235150200111001)
+# 3. Set URL service (port laptop ini: 18081/18082; ganti ke 8081/8082 jika tanpa override)
+$ROOM_URL = "http://127.0.0.1:18081"
+$RES_URL  = "http://127.0.0.1:18082"
+
+# 4. Siapkan header Basic Auth untuk akun Student (235150200111001)
 $AUTH = "$($env:DEMO_STUDENT_ID):$($env:DEMO_STUDENT_PASSWORD)"
 $cred = [Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes($AUTH))
 $headers = @{ Authorization = "Basic $cred"; "Content-Type" = "application/json" }
 
-# 4. Bersihkan layar terminal sebelum share screen
+# 5. Bersihkan layar terminal sebelum share screen
 cls
 ```
 
@@ -48,16 +54,20 @@ cls
 
 ### B. Bash (Linux / WSL)
 
-**Di Terminal 1 (Nyalakan Docker Compose & load `.env`):**
+**Di Terminal 1 (Masuk repo, nyalakan Docker Compose & load `.env`):**
 ```bash
+cd "/media/tonii/LINUX-2/College/Mata Kuliah/SEMESTER 7/Arsitektur Berbasis Layanan/filkom-space"
 docker compose up -d && docker compose ps
 set -a && source .env && set +a
+ROOM_URL="http://127.0.0.1:18081"
+RES_URL="http://127.0.0.1:18082"
 AUTH="${DEMO_STUDENT_ID}:${DEMO_STUDENT_PASSWORD}"
 clear
 ```
 
 **Di Terminal 2 (Pre-warm kompilasi Maven):**
 ```bash
+cd "/media/tonii/LINUX-2/College/Mata Kuliah/SEMESTER 7/Arsitektur Berbasis Layanan/filkom-space"
 mvn -B test-compile
 clear
 ```
@@ -72,12 +82,12 @@ Jalankan urut **Langkah 1 → 5** di **Terminal 1**. Semua UUID (`ROOM_ID` dan `
 
 ```powershell
 # 1) Cari daftar ruangan aktif (Publik) & ambil ROOM_ID otomatis
-$rooms = Invoke-RestMethod "http://localhost:8081/api/v2/rooms?minCapacity=4"
+$rooms = Invoke-RestMethod "$ROOM_URL/api/v2/rooms?minCapacity=4"
 $rooms | ConvertTo-Json -Depth 4
 $ROOM_ID = $rooms.items[0].id
 
 # 2) Cek ketersediaan slot (Publik) — respons memakai objek schedule & available: true
-Invoke-RestMethod "http://localhost:8082/api/v2/availability?roomId=$ROOM_ID&date=2026-12-10&startTime=13:00&endTime=15:00" | ConvertTo-Json -Depth 4
+Invoke-RestMethod "$RES_URL/api/v2/availability?roomId=$ROOM_ID&date=2026-12-10&startTime=13:00&endTime=15:00" | ConvertTo-Json -Depth 4
 
 # 3) Ajukan reservasi baru sebagai Student (201 Created, status awal PENDING)
 $bodyCreate = @{
@@ -87,7 +97,7 @@ $bodyCreate = @{
   purpose = "Diskusi proyek akhir ABL"
   participantCount = 4
 } | ConvertTo-Json -Depth 4
-$res = Invoke-RestMethod -Method Post -Uri "http://localhost:8082/api/v2/reservations" -Headers $headers -Body $bodyCreate
+$res = Invoke-RestMethod -Method Post -Uri "$RES_URL/api/v2/reservations" -Headers $headers -Body $bodyCreate
 $res | ConvertTo-Json -Depth 4
 $RES_ID = $res.id
 
@@ -98,17 +108,17 @@ $bodyUpdate = @{
   purpose = "Diskusi & revisi proyek ABL"
   participantCount = 6
 } | ConvertTo-Json -Depth 4
-Invoke-RestMethod -Method Put -Uri "http://localhost:8082/api/v2/reservations/$RES_ID" -Headers $headers -Body $bodyUpdate | ConvertTo-Json -Depth 4
+Invoke-RestMethod -Method Put -Uri "$RES_URL/api/v2/reservations/$RES_ID" -Headers $headers -Body $bodyUpdate | ConvertTo-Json -Depth 4
 
 # 5) Batalkan reservasi milik sendiri (DELETE -> 204 No Content) & cek status CANCELLED
-Invoke-WebRequest -Method Delete -Uri "http://localhost:8082/api/v2/reservations/$RES_ID" -Headers $headers | Select-Object StatusCode, StatusDescription
-Invoke-RestMethod -Uri "http://localhost:8082/api/v2/reservations/$RES_ID" -Headers $headers | ConvertTo-Json -Depth 4
+Invoke-WebRequest -Method Delete -Uri "$RES_URL/api/v2/reservations/$RES_ID" -Headers $headers | Select-Object StatusCode, StatusDescription
+Invoke-RestMethod -Uri "$RES_URL/api/v2/reservations/$RES_ID" -Headers $headers | ConvertTo-Json -Depth 4
 ```
 
 *(Opsional bonus 5 detik — bukti RBAC Student tidak boleh membuat ruangan -> `403 Forbidden`)*:
 ```powershell
 $bodyRoom = '{"code":"TEST-403","name":"Test","building":"G","floor":1,"capacity":5,"facilities":["WIFI"]}'
-try { Invoke-WebRequest -Method Post -Uri "http://localhost:8081/api/v2/rooms" -Headers $headers -Body $bodyRoom } catch { $_.Exception.Response.StatusCode.value__ }
+try { Invoke-WebRequest -Method Post -Uri "$ROOM_URL/api/v2/rooms" -Headers $headers -Body $bodyRoom } catch { $_.Exception.Response.StatusCode.value__ }
 ```
 
 ---
@@ -117,33 +127,33 @@ try { Invoke-WebRequest -Method Post -Uri "http://localhost:8081/api/v2/rooms" -
 
 ```bash
 # 1) Cari daftar ruangan aktif (Publik) & ambil ROOM_ID otomatis
-ROOMS=$(curl -s "http://localhost:8081/api/v2/rooms?minCapacity=4")
+ROOMS=$(curl -s "${ROOM_URL}/api/v2/rooms?minCapacity=4")
 echo "$ROOMS" | python3 -m json.tool
 ROOM_ID=$(echo "$ROOMS" | python3 -c "import sys,json; print(json.load(sys.stdin)['items'][0]['id'])")
 
 # 2) Cek ketersediaan slot (Publik) — respons memakai objek schedule & available: true
-curl -s "http://localhost:8082/api/v2/availability?roomId=${ROOM_ID}&date=2026-12-10&startTime=13:00&endTime=15:00" | python3 -m json.tool
+curl -s "${RES_URL}/api/v2/availability?roomId=${ROOM_ID}&date=2026-12-10&startTime=13:00&endTime=15:00" | python3 -m json.tool
 
 # 3) Ajukan reservasi baru sebagai Student (201 Created, status awal PENDING)
-RES=$(curl -s -u "$AUTH" -X POST "http://localhost:8082/api/v2/reservations" \
+RES=$(curl -s -u "$AUTH" -X POST "${RES_URL}/api/v2/reservations" \
   -H "Content-Type: application/json" \
   -d "{\"roomId\":\"${ROOM_ID}\",\"studentId\":\"${DEMO_STUDENT_ID}\",\"schedule\":{\"date\":\"2026-12-10\",\"startTime\":\"13:00\",\"endTime\":\"15:00\"},\"purpose\":\"Diskusi proyek akhir ABL\",\"participantCount\":4}")
 echo "$RES" | python3 -m json.tool
 RES_ID=$(echo "$RES" | python3 -c "import sys,json; print(json.load(sys.stdin)['id'])")
 
 # 4) Ubah pengajuan PENDING milik sendiri (PUT -> 200 OK)
-curl -s -u "$AUTH" -X PUT "http://localhost:8082/api/v2/reservations/${RES_ID}" \
+curl -s -u "$AUTH" -X PUT "${RES_URL}/api/v2/reservations/${RES_ID}" \
   -H "Content-Type: application/json" \
   -d "{\"roomId\":\"${ROOM_ID}\",\"schedule\":{\"date\":\"2026-12-10\",\"startTime\":\"14:00\",\"endTime\":\"16:00\"},\"purpose\":\"Diskusi & revisi proyek ABL\",\"participantCount\":6}" | python3 -m json.tool
 
 # 5) Batalkan reservasi (DELETE -> 204 No Content) & verifikasi status CANCELLED
-curl -i -s -u "$AUTH" -X DELETE "http://localhost:8082/api/v2/reservations/${RES_ID}" | head -n 1
-curl -s -u "$AUTH" "http://localhost:8082/api/v2/reservations/${RES_ID}" | python3 -m json.tool
+curl -i -s -u "$AUTH" -X DELETE "${RES_URL}/api/v2/reservations/${RES_ID}" | head -n 1
+curl -s -u "$AUTH" "${RES_URL}/api/v2/reservations/${RES_ID}" | python3 -m json.tool
 ```
 
 *(Opsional bonus 5 detik — bukti RBAC Student -> `403 Forbidden`)*:
 ```bash
-curl -i -s -u "$AUTH" -X POST "http://localhost:8081/api/v2/rooms" \
+curl -i -s -u "$AUTH" -X POST "${ROOM_URL}/api/v2/rooms" \
   -H "Content-Type: application/json" \
   -d '{"code":"TEST-403","name":"Test","building":"G","floor":1,"capacity":5,"facilities":["WIFI"]}' | head -n 1
 ```
